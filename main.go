@@ -5,12 +5,9 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"github.com/golang/glog"
 	"k8s.io/api/admission/v1beta1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"net/http"
 )
 
@@ -18,6 +15,12 @@ import (
 type Config struct {
 	CertFile string
 	KeyFile  string
+}
+
+// KubernetesResource represents any Kubernetes resource with standard object metadata structures.
+type KubernetesResource struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 }
 
 func (c *Config) addFlags() {
@@ -36,26 +39,20 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 	}
 }
 
-func admitNamespaces(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}
-	if ar.Request.Resource != podResource {
-		err := fmt.Errorf("expect resource to be %s", podResource)
-		glog.Error(err)
-		return toAdmissionResponse(err)
-	}
-
-	namespace := corev1.Namespace{}
+func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	resource := KubernetesResource{}
 	r := bytes.NewReader(ar.Request.Object.Raw)
 	decoder := json.NewDecoder(r)
-	if err := decoder.Decode(&namespace); err != nil {
+	if err := decoder.Decode(&resource); err != nil {
 		glog.Error(err)
-		return toAdmissionResponse(err)
+		return nil
 	}
 
-	glog.Infof("Received request for admission of namespace: %+v", namespace)
+	glog.Infof("Received admission request on resource: %+v", resource)
 
 	reviewResponse := v1beta1.AdmissionResponse{}
 	reviewResponse.Allowed = true
+
 	return &reviewResponse
 }
 
@@ -86,9 +83,6 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 		response.Response = reviewResponse
 		response.Response.UID = ar.Request.UID
 	}
-	// reset the Object and OldObject, they are not needed in a response.
-	ar.Request.Object = runtime.RawExtension{}
-	ar.Request.OldObject = runtime.RawExtension{}
 
 	encoder := json.NewEncoder(w)
 	err := encoder.Encode(response)
@@ -97,8 +91,8 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	}
 }
 
-func serveNamespaces(w http.ResponseWriter, r *http.Request) {
-	serve(w, r, admitNamespaces)
+func serveAny(w http.ResponseWriter, r *http.Request) {
+	serve(w, r, admitCallback)
 }
 
 func configTLS(config Config) *tls.Config {
@@ -116,7 +110,7 @@ func main() {
 	config.addFlags()
 	flag.Parse()
 
-	http.HandleFunc("/", serveNamespaces)
+	http.HandleFunc("/", serveAny)
 	server := &http.Server{
 		Addr:      ":8443",
 		TLSConfig: configTLS(config),
