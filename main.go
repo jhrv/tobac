@@ -39,6 +39,7 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 	}
 }
 
+
 func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	resource := KubernetesResource{}
 	r := bytes.NewReader(ar.Request.Object.Raw)
@@ -48,7 +49,12 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return nil
 	}
 
-	glog.Infof("Received admission request on resource: %+v", resource)
+	if ar.Request == nil {
+		glog.Warning("Admission review request is nil")
+		return nil
+	}
+
+	glog.Infof("Request '%s' from user '%s' in groups '%+v'", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 
 	reviewResponse := v1beta1.AdmissionResponse{}
 	reviewResponse.Allowed = true
@@ -76,13 +82,13 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 		reviewResponse = admit(ar)
 	}
 
-	glog.Infof("Sending admission response: %+v", ar)
-
 	response := v1beta1.AdmissionReview{}
 	if reviewResponse != nil {
 		response.Response = reviewResponse
 		response.Response.UID = ar.Request.UID
 	}
+
+	glog.Infof("Sending admission response: %+v", response)
 
 	encoder := json.NewEncoder(w)
 	err := encoder.Encode(response)
