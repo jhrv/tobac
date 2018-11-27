@@ -62,7 +62,12 @@ func allowed(info authenticationv1.UserInfo, resource KubernetesResource) error 
 	// if update and not in old team label group: deny
 	//
 	// if in team label group: allow
-	//
+	for _, azureUUID := range info.Groups {
+		if azureUUID == team.AzureUUID {
+			return nil
+		}
+	}
+
 	// default deny
 	return fmt.Errorf("default rule is to deny")
 }
