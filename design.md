@@ -15,14 +15,17 @@ Creation:
 Updates:
 
 - Applications (same-team)
+- ConfigMaps (same-team)
+- RedisFailovers (same-team)
 
 Deletion:
 
 - Applications (same-team)
 - ConfigMaps (same-team)
+- RedisFailovers (same-team)
 - Pods (same-team)
 
-Read-only access; get, list, and watch:
+Read-only access; get, list, and watch. These are granted by the `view` role.
 
 - Pods
 - Pods/log
