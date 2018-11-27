@@ -5,11 +5,17 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"github.com/golang/glog"
+	"github.com/nais/tobac/pkg/teams"
 	"k8s.io/api/admission/v1beta1"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
+	"time"
 )
+
+var teamSyncInterval = 10 * time.Minute
 
 // Config contains the server (the webhook) cert and key.
 type Config struct {
@@ -39,6 +45,26 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 	}
 }
 
+func allowed(info authenticationv1.UserInfo, resource KubernetesResource) error {
+	teamId := resource.Labels["team"]
+	if len(teamId) == 0 {
+		return fmt.Errorf("object is not tagged with a team label")
+	}
+
+	team := teams.Get(resource.Labels["team"])
+	if !team.Valid() {
+		return fmt.Errorf("team '%s' does not exist in Azure AD", resource.Labels["team"])
+	}
+
+	// if clusterAdmin: allow
+	//
+	// if update and not in old team label group: deny
+	//
+	// if in team label group: allow
+	//
+	// default deny
+	return fmt.Errorf("default rule is to deny")
+}
 
 func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	resource := KubernetesResource{}
@@ -57,7 +83,13 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	glog.Infof("Request '%s' from user '%s' in groups '%+v'", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 
 	reviewResponse := v1beta1.AdmissionResponse{}
-	reviewResponse.Allowed = true
+	err := allowed(ar.Request.UserInfo, resource)
+	if err == nil {
+		reviewResponse.Allowed = true
+	} else {
+		reviewResponse.Allowed = false
+		glog.Infof("Denying request: %s", err)
+	}
 
 	return &reviewResponse
 }
@@ -115,6 +147,8 @@ func main() {
 	var config Config
 	config.addFlags()
 	flag.Parse()
+
+	go teams.Sync(teamSyncInterval)
 
 	http.HandleFunc("/", serveAny)
 	server := &http.Server{

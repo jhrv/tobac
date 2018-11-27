@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	clientId     = os.Getenv("AZURE_AD_SERVICE_PRINCIPAL_APP_ID")
-	clientSecret = os.Getenv("AZURE_AD_SERVICE_PRINCIPAL_PASSWORD")
-	tenantId     = os.Getenv("AZURE_AD_SERVICE_PRINCIPAL_TENANT")
+	clientId     = os.Getenv("AZURE_APP_ID")
+	clientSecret = os.Getenv("AZURE_PASSWORD")
+	tenantId     = os.Getenv("AZURE_TENANT")
 )
 
 const SHAREPOINT_QUERY = "9f0d0ea1-0226-4aa9-9bf9-b6e75816fabf/sites/root/lists/nytt team/items?expand=fields"
