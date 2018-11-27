@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/nais/tobac/pkg/teams"
 	"k8s.io/api/admission/v1beta1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net/http"
-	"time"
 )
 
 var teamSyncInterval = 10 * time.Minute
@@ -46,8 +47,8 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 }
 
 func allowed(info authenticationv1.UserInfo, resource KubernetesResource) error {
-	teamId := resource.Labels["team"]
-	if len(teamId) == 0 {
+	teamID := resource.Labels["team"]
+	if len(teamID) == 0 {
 		return fmt.Errorf("object is not tagged with a team label")
 	}
 
@@ -88,6 +89,9 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		reviewResponse.Allowed = true
 	} else {
 		reviewResponse.Allowed = false
+		reviewResponse.Result = &metav1.Status{
+			Message: fmt.Sprintf("Unable to complete request, %s", err.Error()),
+		}
 		glog.Infof("Denying request: %s", err)
 	}
 

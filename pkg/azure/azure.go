@@ -3,22 +3,23 @@ package azure
 import (
 	"context"
 	"encoding/json"
-	"golang.org/x/oauth2/clientcredentials"
-	"golang.org/x/oauth2/microsoft"
-	"k8s.io/klog/glog"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
+
+	"golang.org/x/oauth2/clientcredentials"
+	"golang.org/x/oauth2/microsoft"
+	"k8s.io/klog/glog"
 )
 
 var (
-	clientId     = os.Getenv("AZURE_APP_ID")
+	clientID     = os.Getenv("AZURE_APP_ID")
 	clientSecret = os.Getenv("AZURE_PASSWORD")
-	tenantId     = os.Getenv("AZURE_TENANT")
+	tenantID     = os.Getenv("AZURE_TENANT")
 )
 
-const SHAREPOINT_QUERY = "9f0d0ea1-0226-4aa9-9bf9-b6e75816fabf/sites/root/lists/nytt team/items?expand=fields"
+const sharepointQuery = "9f0d0ea1-0226-4aa9-9bf9-b6e75816fabf/sites/root/lists/nytt team/items?expand=fields"
 
 type sharePointList struct {
 	Value []sharePointListEntry `json:"value"`
@@ -28,6 +29,7 @@ type sharePointListEntry struct {
 	Fields Team `json:"fields"`
 }
 
+// Team struc used to deserialize fields from sharePointListEntry.
 type Team struct {
 	AzureUUID   string `json:"GruppeID"`
 	ID          string `json:"mailnick_x002f_tag"`
@@ -48,10 +50,10 @@ func client(ctx context.Context) *http.Client {
 	}
 
 	config := clientcredentials.Config{
-		ClientID:     clientId,
+		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Scopes:       []string{"https://graph.microsoft.com/.default"},
-		TokenURL:     microsoft.AzureADEndpoint(tenantId).TokenURL,
+		TokenURL:     microsoft.AzureADEndpoint(tenantID).TokenURL,
 	}
 
 	cachedClient = config.Client(ctx)
@@ -59,14 +61,14 @@ func client(ctx context.Context) *http.Client {
 }
 
 func get(ctx context.Context, path string, target interface{}) error {
-	getUrl, err := url.Parse("https://graph.microsoft.com/v1.0/groups/" + path)
+	getURL, err := url.Parse("https://graph.microsoft.com/v1.0/groups/" + path)
 	if err != nil {
 		return err
 	}
 
 	req := &http.Request{
 		Method: "GET",
-		URL:    getUrl,
+		URL:    getURL,
 	}
 
 	resp, err := client(ctx).Do(req)
@@ -84,7 +86,7 @@ func Teams(ctx context.Context) (map[string]Team, error) {
 	teams := make(map[string]Team)
 
 	list := &sharePointList{}
-	err := get(ctx, SHAREPOINT_QUERY, list)
+	err := get(ctx, sharepointQuery, list)
 	if err != nil {
 		return nil, err
 	}

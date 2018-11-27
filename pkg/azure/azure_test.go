@@ -4,8 +4,9 @@ package azure_test
 
 import (
 	"fmt"
-	"github.com/nais/tobac/pkg/azure"
 	"testing"
+
+	"github.com/nais/tobac/pkg/azure"
 )
 
 func TestAzure(t *testing.T) {
