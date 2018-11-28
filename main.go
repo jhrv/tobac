@@ -147,7 +147,11 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return nil
 	}
 
-	logrus.Infof("Request '%s' from user '%s' in groups '%+v'", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
+	if len(resource.SelfLink) > 0 {
+		logrus.Infof("Request '%s' from user '%s' in groups %+v", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
+	} else {
+		logrus.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
+	}
 
 	reviewResponse := v1beta1.AdmissionResponse{}
 	err = allowed(ar.Request.UserInfo, previous, resource)
@@ -190,8 +194,6 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 		response.Response = reviewResponse
 		response.Response.UID = ar.Request.UID
 	}
-
-	logrus.Infof("Sending admission response: %+v", response)
 
 	encoder := json.NewEncoder(w)
 	err := encoder.Encode(response)
@@ -244,6 +246,9 @@ func run() error {
 		return fmt.Errorf("invalid sync interval: %s", err)
 	}
 
+	logrus.Infof("Synchronizing team groups against Azure AD every %s", config.AzureSyncInterval)
+	logrus.Infof("Cluster administrator groups: %+v", config.ClusterAdmins)
+
 	go teams.Sync(dur)
 
 	http.HandleFunc("/", serveAny)
@@ -257,9 +262,11 @@ func run() error {
 }
 
 func main() {
+	logrus.Info("ToBAC starting.")
 	err := run()
 	if err != nil {
 		logrus.Errorf("Fatal error: %s", err)
 		os.Exit(1)
 	}
+	logrus.Info("Shutting down cleanly.")
 }
