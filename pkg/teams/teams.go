@@ -18,6 +18,7 @@ func Sync(interval time.Duration) {
 	defer cancelFunc()
 
 	for {
+		timer.Reset(interval)
 		logrus.Infof("Retrieving teams from MS Graph API")
 		teams, err := azure.Teams(ctx)
 		if err != nil {

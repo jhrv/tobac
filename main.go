@@ -5,15 +5,16 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"time"
+
 	"github.com/nais/tobac/pkg/teams"
 	"github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"k8s.io/api/admission/v1beta1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net/http"
-	"os"
-	"time"
 )
 
 // Config contains the server (the webhook) cert and key.
@@ -33,6 +34,8 @@ func DefaultConfig() *Config {
 		LogFormat:         "text",
 	}
 }
+
+var config = DefaultConfig()
 
 // KubernetesResource represents any Kubernetes resource with standard object metadata structures.
 type KubernetesResource struct {
@@ -56,58 +59,107 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 	}
 }
 
-func allowed(info authenticationv1.UserInfo, resource KubernetesResource) error {
+func contains(arr []string, target string) bool {
+	for _, s := range arr {
+		if target == s {
+			return true
+		}
+	}
+	return false
+}
+
+func allowed(info authenticationv1.UserInfo, previous, resource *KubernetesResource) error {
 	teamID := resource.Labels["team"]
 	if len(teamID) == 0 {
 		return fmt.Errorf("object is not tagged with a team label")
 	}
 
+	// Allow if user is a cluster administrator
+	for _, userGroup := range info.Groups {
+		for _, adminGroup := range config.ClusterAdmins {
+			if userGroup == adminGroup {
+				return nil
+			}
+		}
+	}
+
+	// Deny if specified team does not exist
 	team := teams.Get(resource.Labels["team"])
 	if !team.Valid() {
 		return fmt.Errorf("team '%s' does not exist in Azure AD", resource.Labels["team"])
 	}
 
-	// if clusterAdmin: allow
-	//
-	// if update and not in old team label group: deny
-	//
-	// if in team label group: allow
-	for _, azureUUID := range info.Groups {
-		if azureUUID == team.AzureUUID {
-			return nil
+	// Deny if user does not belong to previous resource's team
+	if previous != nil {
+		label := previous.Labels["team"]
+
+		// Allow users to claim previously unlabeled resources
+		if len(label) > 0 {
+			previousTeam := teams.Get(label)
+			if !previousTeam.Valid() {
+				return fmt.Errorf("team '%s' on existing resource does not exist in Azure AD", label)
+			}
+			if !contains(info.Groups, previousTeam.AzureUUID) {
+				return fmt.Errorf("user '%s' has no access to team '%s'", info.Username, previousTeam.ID)
+			}
 		}
 	}
 
+	// Finally, allow if user exists in the specified team
+	if contains(info.Groups, team.AzureUUID) {
+		return nil
+	}
+
 	// default deny
-	return fmt.Errorf("default rule is to deny")
+	return fmt.Errorf("user '%s' has no access to team '%s'", info.Username, teamID)
+}
+
+func decode(raw []byte) (*KubernetesResource, error) {
+	k := &KubernetesResource{}
+	if len(raw) == 0 {
+		return nil, nil
+	}
+
+	r := bytes.NewReader(raw)
+	decoder := json.NewDecoder(r)
+	if err := decoder.Decode(k); err != nil {
+		return nil, fmt.Errorf("while decoding Kubernetes resource: %s", err)
+	}
+
+	return k, nil
 }
 
 func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	resource := KubernetesResource{}
-	r := bytes.NewReader(ar.Request.Object.Raw)
-	decoder := json.NewDecoder(r)
-	if err := decoder.Decode(&resource); err != nil {
+	if ar.Request == nil {
+		logrus.Warning("Admission review request is nil")
+		return nil
+	}
+
+	previous, err := decode(ar.Request.OldObject.Raw)
+	if err != nil {
 		logrus.Error(err)
 		return nil
 	}
 
-	if ar.Request == nil {
-		logrus.Warning("Admission review request is nil")
+	resource, err := decode(ar.Request.Object.Raw)
+	if err != nil {
+		logrus.Error(err)
 		return nil
 	}
 
 	logrus.Infof("Request '%s' from user '%s' in groups '%+v'", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 
 	reviewResponse := v1beta1.AdmissionResponse{}
-	err := allowed(ar.Request.UserInfo, resource)
+	err = allowed(ar.Request.UserInfo, previous, resource)
 	if err == nil {
 		reviewResponse.Allowed = true
+		logrus.Infof("Request allowed.")
 	} else {
 		reviewResponse.Allowed = false
 		reviewResponse.Result = &metav1.Status{
-			Message: fmt.Sprintf("Unable to complete request, %s", err.Error()),
+			Message: err.Error(),
 		}
-		logrus.Infof("Denying request: %s", err)
+		logrus.Infof("Request denied: %s", err)
 	}
 
 	return &reviewResponse
@@ -162,8 +214,14 @@ func configTLS(config Config) (*tls.Config, error) {
 	}, nil
 }
 
+func textFormatter() logrus.Formatter {
+	return &logrus.TextFormatter{
+		DisableTimestamp: false,
+		FullTimestamp:    true,
+	}
+}
+
 func run() error {
-	config := DefaultConfig()
 	config.addFlags()
 	flag.Parse()
 
@@ -171,7 +229,7 @@ func run() error {
 	case "json":
 		logrus.SetFormatter(&logrus.JSONFormatter{})
 	case "text":
-		logrus.SetFormatter(&logrus.TextFormatter{})
+		logrus.SetFormatter(textFormatter())
 	default:
 		return fmt.Errorf("log format '%s' is not recognized", config.LogFormat)
 	}
