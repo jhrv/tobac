@@ -15,4 +15,4 @@ MAINTAINER Kim Tore Jensen <kimtjen@gmail.com>
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /src/tobac /app/tobac
-CMD ["/app/tobac", "-logtostderr", "-v", "-9", "-cert", "/etc/tobac/tls.crt", "-key", "/etc/tobac/tls.key"]
+CMD ["/app/tobac"]
