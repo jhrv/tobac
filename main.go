@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/golang/glog"
@@ -20,8 +21,16 @@ var teamSyncInterval = 10 * time.Minute
 
 // Config contains the server (the webhook) cert and key.
 type Config struct {
-	CertFile string
-	KeyFile  string
+	CertFile      string
+	KeyFile       string
+	ClusterAdmins []string
+}
+
+func DefaultConfig() *Config {
+	return &Config{
+		CertFile: "/etc/tobac/tls.crt",
+		KeyFile:  "/etc/tobac/tls.key",
+	}
 }
 
 // KubernetesResource represents any Kubernetes resource with standard object metadata structures.
@@ -31,11 +40,9 @@ type KubernetesResource struct {
 }
 
 func (c *Config) addFlags() {
-	flag.StringVar(&c.CertFile, "cert", c.CertFile, ""+
-		"File containing the default x509 Certificate for HTTPS. (CA cert, if any, concatenated "+
-		"after server cert).")
-	flag.StringVar(&c.KeyFile, "key", c.KeyFile, ""+
-		"File containing the default x509 private key matching --cert.")
+	flag.StringVar(&c.CertFile, "cert", c.CertFile, "File containing the x509 certificate for HTTPS.")
+	flag.StringVar(&c.KeyFile, "key", c.KeyFile, "File containing the x509 private key.")
+	flag.StringSlice("cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
 }
 
 func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
@@ -142,27 +149,42 @@ func serveAny(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, admitCallback)
 }
 
-func configTLS(config Config) *tls.Config {
+func configTLS(config Config) (*tls.Config, error) {
 	sCert, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
 	if err != nil {
-		glog.Fatal(err)
+		return nil, fmt.Errorf("while loading certificate and key file: %s", err)
 	}
 	return &tls.Config{
 		Certificates: []tls.Certificate{sCert},
-	}
+	}, nil
 }
 
-func main() {
-	var config Config
+func run() error {
+	config := DefaultConfig()
 	config.addFlags()
 	flag.Parse()
+
+	tls, err := configTLS(*config)
+	if err != nil {
+		return err
+	}
 
 	go teams.Sync(teamSyncInterval)
 
 	http.HandleFunc("/", serveAny)
 	server := &http.Server{
 		Addr:      ":8443",
-		TLSConfig: configTLS(config),
+		TLSConfig: tls,
 	}
 	server.ListenAndServeTLS("", "")
+
+	return nil
+}
+
+func main() {
+	err := run()
+	if err != nil {
+		glog.Errorf("Fatal error: %s", err)
+		os.Exit(1)
+	}
 }
