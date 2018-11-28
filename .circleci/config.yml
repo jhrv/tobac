@@ -28,7 +28,7 @@ jobs:
       - setup_remote_docker
       - add_ssh_keys:
           fingerprints:
-            - "SHA256:v893I9lU3dH0gCg0d9v62YSYc7q8dCIqs7m+6UGVcmU"
+            - "a0:e7:55:ea:ab:91:11:bb:5a:b2:41:ed:79:83:c7:80"
       - checkout
       - attach_workspace:
           at: /tmp/workspace
