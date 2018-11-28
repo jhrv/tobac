@@ -5,33 +5,32 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"net/http"
-	"os"
-	"time"
-
 	"github.com/nais/tobac/pkg/teams"
+	"github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"k8s.io/api/admission/v1beta1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"net/http"
+	"os"
+	"time"
 )
-
-var teamSyncInterval = 10 * time.Minute
 
 // Config contains the server (the webhook) cert and key.
 type Config struct {
-	CertFile      string
-	KeyFile       string
-	LogFormat     string
-	ClusterAdmins []string
+	CertFile          string
+	KeyFile           string
+	LogFormat         string
+	AzureSyncInterval string
+	ClusterAdmins     []string
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		CertFile:  "/etc/tobac/tls.crt",
-		KeyFile:   "/etc/tobac/tls.key",
-		LogFormat: "text",
+		CertFile:          "/etc/tobac/tls.crt",
+		KeyFile:           "/etc/tobac/tls.key",
+		AzureSyncInterval: "10m",
+		LogFormat:         "text",
 	}
 }
 
@@ -45,6 +44,7 @@ func (c *Config) addFlags() {
 	flag.StringVar(&c.CertFile, "cert", c.CertFile, "File containing the x509 certificate for HTTPS.")
 	flag.StringVar(&c.KeyFile, "key", c.KeyFile, "File containing the x509 private key.")
 	flag.StringVar(&c.LogFormat, "log-format", c.LogFormat, "Log format, either 'json' or 'text'.")
+	flag.StringVar(&c.AzureSyncInterval, "azure-sync-interval", c.AzureSyncInterval, "How often to synchronize the team list against Azure AD.")
 	flag.StringSlice("cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
 }
 
@@ -178,10 +178,15 @@ func run() error {
 
 	tlsConfig, err := configTLS(*config)
 	if err != nil {
-		return err
+		return fmt.Errorf("while setting up TLS: %s", err)
 	}
 
-	go teams.Sync(teamSyncInterval)
+	dur, err := time.ParseDuration(config.AzureSyncInterval)
+	if err != nil {
+		return fmt.Errorf("invalid sync interval: %s", err)
+	}
+
+	go teams.Sync(dur)
 
 	http.HandleFunc("/", serveAny)
 	server := &http.Server{
