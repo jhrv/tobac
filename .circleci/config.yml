@@ -26,6 +26,9 @@ jobs:
     <<: *defaults
     steps:
       - setup_remote_docker
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:v893I9lU3dH0gCg0d9v62YSYc7q8dCIqs7m+6UGVcmU"
       - checkout
       - attach_workspace:
           at: /tmp/workspace
@@ -42,7 +45,6 @@ jobs:
           name: Release new version
           command: |
             version=$(cat version)
-            git remote set-url origin https://${GITHUB_API_USER}:${GITHUB_API_TOKEN}@github.com/nais/tobac
             git commit version -m "Release version ${version} [skip ci]"
             git tag ${version}
             git push
