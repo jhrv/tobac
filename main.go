@@ -23,13 +23,15 @@ var teamSyncInterval = 10 * time.Minute
 type Config struct {
 	CertFile      string
 	KeyFile       string
+	LogFormat     string
 	ClusterAdmins []string
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		CertFile: "/etc/tobac/tls.crt",
-		KeyFile:  "/etc/tobac/tls.key",
+		CertFile:  "/etc/tobac/tls.crt",
+		KeyFile:   "/etc/tobac/tls.key",
+		LogFormat: "text",
 	}
 }
 
@@ -42,6 +44,7 @@ type KubernetesResource struct {
 func (c *Config) addFlags() {
 	flag.StringVar(&c.CertFile, "cert", c.CertFile, "File containing the x509 certificate for HTTPS.")
 	flag.StringVar(&c.KeyFile, "key", c.KeyFile, "File containing the x509 private key.")
+	flag.StringVar(&c.LogFormat, "log-format", c.LogFormat, "Log format, either 'json' or 'text'.")
 	flag.StringSlice("cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
 }
 
@@ -164,7 +167,16 @@ func run() error {
 	config.addFlags()
 	flag.Parse()
 
-	tls, err := configTLS(*config)
+	switch config.LogFormat {
+	case "json":
+		logrus.SetFormatter(&logrus.JSONFormatter{})
+	case "text":
+		logrus.SetFormatter(&logrus.TextFormatter{})
+	default:
+		return fmt.Errorf("log format '%s' is not recognized", config.LogFormat)
+	}
+
+	tlsConfig, err := configTLS(*config)
 	if err != nil {
 		return err
 	}
@@ -174,7 +186,7 @@ func run() error {
 	http.HandleFunc("/", serveAny)
 	server := &http.Server{
 		Addr:      ":8443",
-		TLSConfig: tls,
+		TLSConfig: tlsConfig,
 	}
 	server.ListenAndServeTLS("", "")
 
