@@ -4,6 +4,7 @@ package azure_test
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/nais/tobac/pkg/azure"
@@ -20,4 +21,6 @@ func TestAzure(t *testing.T) {
 	for _, team := range teams {
 		fmt.Printf("%+v\n", team)
 	}
+
+	assert.NoError(t, err)
 }

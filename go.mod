@@ -10,6 +10,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.2.0
 	github.com/spf13/pflag v1.0.3
+	github.com/stretchr/testify v1.2.2
 	golang.org/x/net v0.0.0-20181114220301-adae6a3d119a // indirect
 	golang.org/x/oauth2 v0.0.0-20181120190819-8f65e3013eba
 	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
