@@ -48,7 +48,7 @@ func (c *Config) addFlags() {
 	flag.StringVar(&c.KeyFile, "key", c.KeyFile, "File containing the x509 private key.")
 	flag.StringVar(&c.LogFormat, "log-format", c.LogFormat, "Log format, either 'json' or 'text'.")
 	flag.StringVar(&c.AzureSyncInterval, "azure-sync-interval", c.AzureSyncInterval, "How often to synchronize the team list against Azure AD.")
-	flag.StringSlice("cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
+	flag.StringSliceVar(&c.ClusterAdmins, "cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
 }
 
 func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
@@ -246,6 +246,7 @@ func run() error {
 		return fmt.Errorf("invalid sync interval: %s", err)
 	}
 
+	logrus.Info("ToBAC starting.")
 	logrus.Infof("Synchronizing team groups against Azure AD every %s", config.AzureSyncInterval)
 	logrus.Infof("Cluster administrator groups: %+v", config.ClusterAdmins)
 
@@ -258,15 +259,15 @@ func run() error {
 	}
 	server.ListenAndServeTLS("", "")
 
+	logrus.Info("Shutting down cleanly.")
+
 	return nil
 }
 
 func main() {
-	logrus.Info("ToBAC starting.")
 	err := run()
 	if err != nil {
 		logrus.Errorf("Fatal error: %s", err)
 		os.Exit(1)
 	}
-	logrus.Info("Shutting down cleanly.")
 }
