@@ -5,11 +5,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/nais/tobac/pkg/teams"
 	flag "github.com/spf13/pflag"
 	"k8s.io/api/admission/v1beta1"
@@ -84,16 +84,16 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	r := bytes.NewReader(ar.Request.Object.Raw)
 	decoder := json.NewDecoder(r)
 	if err := decoder.Decode(&resource); err != nil {
-		glog.Error(err)
+		logrus.Error(err)
 		return nil
 	}
 
 	if ar.Request == nil {
-		glog.Warning("Admission review request is nil")
+		logrus.Warning("Admission review request is nil")
 		return nil
 	}
 
-	glog.Infof("Request '%s' from user '%s' in groups '%+v'", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
+	logrus.Infof("Request '%s' from user '%s' in groups '%+v'", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 
 	reviewResponse := v1beta1.AdmissionResponse{}
 	err := allowed(ar.Request.UserInfo, resource)
@@ -104,7 +104,7 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		reviewResponse.Result = &metav1.Status{
 			Message: fmt.Sprintf("Unable to complete request, %s", err.Error()),
 		}
-		glog.Infof("Denying request: %s", err)
+		logrus.Infof("Denying request: %s", err)
 	}
 
 	return &reviewResponse
@@ -116,7 +116,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		glog.Errorf("contentType=%s, expect application/json", contentType)
+		logrus.Errorf("contentType=%s, expect application/json", contentType)
 		return
 	}
 
@@ -124,7 +124,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	ar := v1beta1.AdmissionReview{}
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ar); err != nil {
-		glog.Error(err)
+		logrus.Error(err)
 		reviewResponse = toAdmissionResponse(err)
 	} else {
 		reviewResponse = admit(ar)
@@ -136,12 +136,12 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 		response.Response.UID = ar.Request.UID
 	}
 
-	glog.Infof("Sending admission response: %+v", response)
+	logrus.Infof("Sending admission response: %+v", response)
 
 	encoder := json.NewEncoder(w)
 	err := encoder.Encode(response)
 	if err != nil {
-		glog.Error(err)
+		logrus.Error(err)
 	}
 }
 
@@ -184,7 +184,7 @@ func run() error {
 func main() {
 	err := run()
 	if err != nil {
-		glog.Errorf("Fatal error: %s", err)
+		logrus.Errorf("Fatal error: %s", err)
 		os.Exit(1)
 	}
 }

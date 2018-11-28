@@ -1,10 +1,10 @@
 package teams
 
 import (
+	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/nais/tobac/pkg/azure"
 )
 
@@ -18,17 +18,17 @@ func Sync(interval time.Duration) {
 	defer cancelFunc()
 
 	for {
-		glog.V(9).Infof("Retrieving teams from MS Graph API")
+		logrus.Infof("Retrieving teams from MS Graph API")
 		teams, err := azure.Teams(ctx)
 		if err != nil {
-			glog.Errorf("while retrieving teams: %s", err)
+			logrus.Errorf("while retrieving teams: %s", err)
 			<-timer.C
 			continue
 		}
 		mutex.Lock()
 		teamList = teams
 		mutex.Unlock()
-		glog.Infof("Cached %d teams from Azure AD", len(teamList))
+		logrus.Infof("Cached %d teams from Azure AD", len(teamList))
 		<-timer.C
 	}
 }

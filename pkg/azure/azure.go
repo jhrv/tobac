@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"net/url"
 	"os"
@@ -10,7 +11,6 @@ import (
 
 	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/oauth2/microsoft"
-	"k8s.io/klog/glog"
 )
 
 var (
@@ -95,7 +95,7 @@ func Teams(ctx context.Context) (map[string]Team, error) {
 		team := v.Fields
 		if team.Valid() {
 			teams[team.ID] = team
-			glog.V(9).Infof("azure: add team '%s' with id '%s'", team.ID, team.AzureUUID)
+			logrus.Debugf("azure: add team '%s' with id '%s'", team.ID, team.AzureUUID)
 		}
 	}
 
