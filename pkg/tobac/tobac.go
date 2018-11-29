@@ -51,6 +51,9 @@ func hasServiceUserAccess(username, teamID string, templates []string) bool {
 }
 
 func Allowed(request Request) error {
+	var team azure.Team
+	var teamID string
+
 	// Allow if user is a cluster administrator
 	for _, userGroup := range request.UserInfo.Groups {
 		for _, adminGroup := range request.ClusterAdmins {
@@ -60,16 +63,18 @@ func Allowed(request Request) error {
 		}
 	}
 
-	// Deny if object is not tagged with a team label.
-	teamID := request.SubmittedResource.Labels["team"]
-	if len(teamID) == 0 {
-		return fmt.Errorf(ErrorNotTaggedWithTeamLabel)
-	}
+	if request.SubmittedResource != nil {
+		// Deny if object is not tagged with a team label.
+		teamID = request.SubmittedResource.Labels["team"]
+		if len(teamID) == 0 {
+			return fmt.Errorf(ErrorNotTaggedWithTeamLabel)
+		}
 
-	// Deny if specified team does not exist
-	team := request.TeamProvider(request.SubmittedResource.Labels["team"])
-	if !team.Valid() {
-		return fmt.Errorf(ErrorTeamDoesNotExistInAzureAD, request.SubmittedResource.Labels["team"])
+		// Deny if specified team does not exist
+		team = request.TeamProvider(request.SubmittedResource.Labels["team"])
+		if !team.Valid() {
+			return fmt.Errorf(ErrorTeamDoesNotExistInAzureAD, request.SubmittedResource.Labels["team"])
+		}
 	}
 
 	// This is an update situation. We must check if the user has access to modify the original resource.
@@ -89,6 +94,10 @@ func Allowed(request Request) error {
 			if !stringInSlice(request.UserInfo.Groups, existingTeam.AzureUUID) && !hasServiceUserAccess(request.UserInfo.Username, existingTeam.ID, request.ServiceUserTemplates) {
 				return fmt.Errorf(ErrorUserHasNoAccessToTeam, request.UserInfo.Username, existingTeam.ID)
 			}
+		}
+
+		if request.SubmittedResource == nil {
+			return nil
 		}
 	}
 

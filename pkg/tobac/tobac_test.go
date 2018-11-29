@@ -158,6 +158,23 @@ func TestAllowIfUserExistsInTeamUpdate(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestAllowIfUserExistsInTeamDelete(t *testing.T) {
+	err := tobac.Allowed(
+		tobac.Request{
+			UserInfo: authenticationv1.UserInfo{
+				Username: "bar",
+				Groups: []string{
+					"foo",
+				},
+			},
+			ClusterAdmins:        clusterAdmins,
+			ServiceUserTemplates: serviceUserTemplates,
+			TeamProvider:         mockedTeamProvider,
+			ExistingResource:     resourceWithTeam("foo"),
+		},
+	)
+	assert.NoError(t, err)
+}
 func TestAllowServiceUserCreate(t *testing.T) {
 	err := tobac.Allowed(
 		tobac.Request{
@@ -185,6 +202,22 @@ func TestAllowServiceUserUpdate(t *testing.T) {
 			ServiceUserTemplates: serviceUserTemplates,
 			TeamProvider:         mockedTeamProvider,
 			SubmittedResource:    resourceWithTeam("foo"),
+			ExistingResource:     resourceWithTeam("foo"),
+		},
+	)
+	assert.NoError(t, err)
+}
+
+func TestAllowServiceUserDelete(t *testing.T) {
+	err := tobac.Allowed(
+		tobac.Request{
+			UserInfo: authenticationv1.UserInfo{
+				Username: "serviceuser-foo",
+				Groups:   []string{},
+			},
+			ClusterAdmins:        clusterAdmins,
+			ServiceUserTemplates: serviceUserTemplates,
+			TeamProvider:         mockedTeamProvider,
 			ExistingResource:     resourceWithTeam("foo"),
 		},
 	)
