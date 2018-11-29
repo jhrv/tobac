@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/nais/tobac/pkg/teams"
+	"github.com/nais/tobac/pkg/tobac"
 	"github.com/nais/tobac/pkg/version"
 	"github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"k8s.io/api/admission/v1beta1"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -40,12 +40,6 @@ func DefaultConfig() *Config {
 
 var config = DefaultConfig()
 
-// KubernetesResource represents any Kubernetes resource with standard object metadata structures.
-type KubernetesResource struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-}
-
 func (c *Config) addFlags() {
 	flag.StringVar(&c.CertFile, "cert", c.CertFile, "File containing the x509 certificate for HTTPS.")
 	flag.StringVar(&c.KeyFile, "key", c.KeyFile, "File containing the x509 private key.")
@@ -63,84 +57,8 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 	}
 }
 
-func contains(arr []string, target string) bool {
-	for _, s := range arr {
-		if target == s {
-			return true
-		}
-	}
-	return false
-}
-
-// Check if a user is in the service user access list.
-func hasServiceUserAccess(username, teamID string) bool {
-	for _, template := range config.ServiceUserTemplates {
-		allowedUser := fmt.Sprintf(template, teamID)
-		if username == allowedUser {
-			return true
-		}
-	}
-	return false
-}
-
-func allowed(info authenticationv1.UserInfo, existing, resource *KubernetesResource) error {
-	// Allow if user is a cluster administrator
-	for _, userGroup := range info.Groups {
-		for _, adminGroup := range config.ClusterAdmins {
-			if userGroup == adminGroup {
-				return nil
-			}
-		}
-	}
-
-	// Deny if object is not tagged with a team label.
-	teamID := resource.Labels["team"]
-	if len(teamID) == 0 {
-		return fmt.Errorf("object is not tagged with a team label")
-	}
-
-	// Deny if specified team does not exist
-	team := teams.Get(resource.Labels["team"])
-	if !team.Valid() {
-		return fmt.Errorf("team '%s' does not exist in Azure AD", resource.Labels["team"])
-	}
-
-	// This is an update situation. We must check if the user has access to modify the original resource.
-	if existing != nil {
-		label := existing.Labels["team"]
-
-		// If the existing resource does not have a team label, skip permission checks.
-		if len(label) > 0 {
-
-			// Deny if existing team does not exist.
-			existingTeam := teams.Get(label)
-			if !existingTeam.Valid() {
-				return fmt.Errorf("team '%s' on existing resource does not exist in Azure AD", label)
-			}
-
-			// If user doesn't belong to the correct team, nor is in the service account access list, deny access.
-			if !contains(info.Groups, existingTeam.AzureUUID) && !hasServiceUserAccess(info.Username, existingTeam.ID) {
-				return fmt.Errorf("user '%s' has no access to team '%s'", info.Username, existingTeam.ID)
-			}
-		}
-	}
-
-	// Finally, allow if user exists in the specified team
-	if contains(info.Groups, team.AzureUUID) {
-		return nil
-	}
-
-	// If user does not exist in the specified team, try to match against service user templates.
-	if hasServiceUserAccess(info.Username, team.ID) {
-		return nil
-	}
-
-	// default deny
-	return fmt.Errorf("user '%s' has no access to team '%s'", info.Username, teamID)
-}
-
-func decode(raw []byte) (*KubernetesResource, error) {
-	k := &KubernetesResource{}
+func decode(raw []byte) (*tobac.KubernetesResource, error) {
+	k := &tobac.KubernetesResource{}
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -179,7 +97,16 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	}
 
 	reviewResponse := v1beta1.AdmissionResponse{}
-	err = allowed(ar.Request.UserInfo, previous, resource)
+	err = tobac.Allowed(
+		tobac.Request{
+			UserInfo: ar.Request.UserInfo,
+			ExistingResource: previous,
+			SubmittedResource: resource,
+			ClusterAdmins: config.ClusterAdmins,
+			ServiceUserTemplates: config.ServiceUserTemplates,
+			TeamProvider: teams.Get,
+		},
+	)
 	if err == nil {
 		reviewResponse.Allowed = true
 		logrus.Infof("Request allowed.")
