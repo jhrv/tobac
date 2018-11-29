@@ -72,6 +72,17 @@ func contains(arr []string, target string) bool {
 	return false
 }
 
+// Check if a user is in the service user access list.
+func hasServiceUserAccess(username, teamID string) bool {
+	for _, template := range config.ServiceUserTemplates {
+		allowedUser := fmt.Sprintf(template, teamID)
+		if username == allowedUser {
+			return true
+		}
+	}
+	return false
+}
+
 func allowed(info authenticationv1.UserInfo, previous, resource *KubernetesResource) error {
 	teamID := resource.Labels["team"]
 	if len(teamID) == 0 {
@@ -103,7 +114,9 @@ func allowed(info authenticationv1.UserInfo, previous, resource *KubernetesResou
 			if !previousTeam.Valid() {
 				return fmt.Errorf("team '%s' on existing resource does not exist in Azure AD", label)
 			}
-			if !contains(info.Groups, previousTeam.AzureUUID) {
+
+			// If user doesn't belong to the correct team, nor is in the service account access list, deny access.
+			if !contains(info.Groups, previousTeam.AzureUUID) && !hasServiceUserAccess(info.Username, previousTeam.ID) {
 				return fmt.Errorf("user '%s' has no access to team '%s'", info.Username, previousTeam.ID)
 			}
 		}
@@ -115,11 +128,8 @@ func allowed(info authenticationv1.UserInfo, previous, resource *KubernetesResou
 	}
 
 	// If user does not exist in the specified team, try to match against service user templates.
-	for _, template := range config.ServiceUserTemplates {
-		allowedUser := fmt.Sprintf(template, team.ID)
-		if info.Username == allowedUser {
-			return nil
-		}
+	if hasServiceUserAccess(info.Username, team.ID) {
+		return nil
 	}
 
 	// default deny
