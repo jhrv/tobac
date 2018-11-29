@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nais/tobac/pkg/teams"
+	"github.com/nais/tobac/pkg/version"
 	"github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"k8s.io/api/admission/v1beta1"
@@ -257,7 +258,7 @@ func run() error {
 		return fmt.Errorf("invalid sync interval: %s", err)
 	}
 
-	logrus.Info("ToBAC starting.")
+	logrus.Infof("ToBAC v%s (%s)", version.Version, version.Revision)
 	logrus.Infof("Synchronizing team groups against Azure AD every %s", config.AzureSyncInterval)
 	logrus.Infof("Cluster administrator groups: %+v", config.ClusterAdmins)
 	logrus.Infof("Service user templates: %+v", config.ServiceUserTemplates)

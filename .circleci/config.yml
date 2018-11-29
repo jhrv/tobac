@@ -13,6 +13,9 @@ jobs:
           name: Create workspace
           command: mkdir -p /tmp/workspace
       - run:
+          name: Bump version temporarily for build
+          command: ./bump.sh
+      - run:
           name: Build Docker container
           command: docker build -t navikt/tobac:latest .
       - run:

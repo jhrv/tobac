@@ -8,7 +8,7 @@ WORKDIR /src
 RUN rm -f go.sum
 RUN go get
 RUN go test ./...
-RUN go build -a -installsuffix cgo -o tobac
+RUN make release
 
 FROM alpine:3.5
 MAINTAINER Kim Tore Jensen <kimtjen@gmail.com>
