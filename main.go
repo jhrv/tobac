@@ -83,12 +83,7 @@ func hasServiceUserAccess(username, teamID string) bool {
 	return false
 }
 
-func allowed(info authenticationv1.UserInfo, previous, resource *KubernetesResource) error {
-	teamID := resource.Labels["team"]
-	if len(teamID) == 0 {
-		return fmt.Errorf("object is not tagged with a team label")
-	}
-
+func allowed(info authenticationv1.UserInfo, existing, resource *KubernetesResource) error {
 	// Allow if user is a cluster administrator
 	for _, userGroup := range info.Groups {
 		for _, adminGroup := range config.ClusterAdmins {
@@ -98,26 +93,34 @@ func allowed(info authenticationv1.UserInfo, previous, resource *KubernetesResou
 		}
 	}
 
+	// Deny if object is not tagged with a team label.
+	teamID := resource.Labels["team"]
+	if len(teamID) == 0 {
+		return fmt.Errorf("object is not tagged with a team label")
+	}
+
 	// Deny if specified team does not exist
 	team := teams.Get(resource.Labels["team"])
 	if !team.Valid() {
 		return fmt.Errorf("team '%s' does not exist in Azure AD", resource.Labels["team"])
 	}
 
-	// Deny if user does not belong to previous resource's team
-	if previous != nil {
-		label := previous.Labels["team"]
+	// This is an update situation. We must check if the user has access to modify the original resource.
+	if existing != nil {
+		label := existing.Labels["team"]
 
-		// Allow users to claim previously unlabeled resources
+		// If the existing resource does not have a team label, skip permission checks.
 		if len(label) > 0 {
-			previousTeam := teams.Get(label)
-			if !previousTeam.Valid() {
+
+			// Deny if existing team does not exist.
+			existingTeam := teams.Get(label)
+			if !existingTeam.Valid() {
 				return fmt.Errorf("team '%s' on existing resource does not exist in Azure AD", label)
 			}
 
 			// If user doesn't belong to the correct team, nor is in the service account access list, deny access.
-			if !contains(info.Groups, previousTeam.AzureUUID) && !hasServiceUserAccess(info.Username, previousTeam.ID) {
-				return fmt.Errorf("user '%s' has no access to team '%s'", info.Username, previousTeam.ID)
+			if !contains(info.Groups, existingTeam.AzureUUID) && !hasServiceUserAccess(info.Username, existingTeam.ID) {
+				return fmt.Errorf("user '%s' has no access to team '%s'", info.Username, existingTeam.ID)
 			}
 		}
 	}
