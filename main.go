@@ -19,19 +19,21 @@ import (
 
 // Config contains the server (the webhook) cert and key.
 type Config struct {
-	CertFile          string
-	KeyFile           string
-	LogFormat         string
-	AzureSyncInterval string
-	ClusterAdmins     []string
+	CertFile             string
+	KeyFile              string
+	LogFormat            string
+	AzureSyncInterval    string
+	ServiceUserTemplates []string
+	ClusterAdmins        []string
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		CertFile:          "/etc/tobac/tls.crt",
-		KeyFile:           "/etc/tobac/tls.key",
-		AzureSyncInterval: "10m",
-		LogFormat:         "text",
+		CertFile:             "/etc/tobac/tls.crt",
+		KeyFile:              "/etc/tobac/tls.key",
+		AzureSyncInterval:    "10m",
+		ServiceUserTemplates: []string{"system:serviceaccount:default:serviceuser-%s"},
+		LogFormat:            "text",
 	}
 }
 
@@ -48,6 +50,7 @@ func (c *Config) addFlags() {
 	flag.StringVar(&c.KeyFile, "key", c.KeyFile, "File containing the x509 private key.")
 	flag.StringVar(&c.LogFormat, "log-format", c.LogFormat, "Log format, either 'json' or 'text'.")
 	flag.StringVar(&c.AzureSyncInterval, "azure-sync-interval", c.AzureSyncInterval, "How often to synchronize the team list against Azure AD.")
+	flag.StringSliceVar(&c.ServiceUserTemplates, "service-user-templates", c.ServiceUserTemplates, "List of Kubernetes users that will be granted access to resources. %s will be replaced by the team label.")
 	flag.StringSliceVar(&c.ClusterAdmins, "cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
 }
 
@@ -108,6 +111,14 @@ func allowed(info authenticationv1.UserInfo, previous, resource *KubernetesResou
 	// Finally, allow if user exists in the specified team
 	if contains(info.Groups, team.AzureUUID) {
 		return nil
+	}
+
+	// If user does not exist in the specified team, try to match against service user templates.
+	for _, template := range config.ServiceUserTemplates {
+		allowedUser := fmt.Sprintf(template, team.ID)
+		if info.Username == allowedUser {
+			return nil
+		}
 	}
 
 	// default deny
@@ -249,6 +260,7 @@ func run() error {
 	logrus.Info("ToBAC starting.")
 	logrus.Infof("Synchronizing team groups against Azure AD every %s", config.AzureSyncInterval)
 	logrus.Infof("Cluster administrator groups: %+v", config.ClusterAdmins)
+	logrus.Infof("Service user templates: %+v", config.ServiceUserTemplates)
 
 	go teams.Sync(dur)
 
