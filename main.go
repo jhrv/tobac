@@ -90,7 +90,7 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return nil
 	}
 
-	if len(resource.SelfLink) > 0 {
+	if resource != nil && len(resource.SelfLink) > 0 {
 		logrus.Infof("Request '%s' from user '%s' in groups %+v", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	} else {
 		logrus.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
