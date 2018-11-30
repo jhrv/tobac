@@ -3,7 +3,7 @@ package azure
 import (
 	"context"
 	"encoding/json"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"net/url"
 	"os"
@@ -95,7 +95,7 @@ func Teams(ctx context.Context) (map[string]Team, error) {
 		team := v.Fields
 		if team.Valid() {
 			teams[team.ID] = team
-			logrus.Debugf("azure: add team '%s' with id '%s'", team.ID, team.AzureUUID)
+			log.Debugf("azure: add team '%s' with id '%s'", team.ID, team.AzureUUID)
 		}
 	}
 

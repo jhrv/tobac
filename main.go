@@ -12,7 +12,7 @@ import (
 	"github.com/nais/tobac/pkg/teams"
 	"github.com/nais/tobac/pkg/tobac"
 	"github.com/nais/tobac/pkg/version"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 	"k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -74,26 +74,26 @@ func decode(raw []byte) (*tobac.KubernetesResource, error) {
 
 func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	if ar.Request == nil {
-		logrus.Warning("Admission review request is nil")
+		log.Warning("Admission review request is nil")
 		return nil
 	}
 
 	previous, err := decode(ar.Request.OldObject.Raw)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return nil
 	}
 
 	resource, err := decode(ar.Request.Object.Raw)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		return nil
 	}
 
 	if resource != nil && len(resource.SelfLink) > 0 {
-		logrus.Infof("Request '%s' from user '%s' in groups %+v", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
+		log.Infof("Request '%s' from user '%s' in groups %+v", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	} else {
-		logrus.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
+		log.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	}
 
 	reviewResponse := v1beta1.AdmissionResponse{}
@@ -109,13 +109,13 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	)
 	if err == nil {
 		reviewResponse.Allowed = true
-		logrus.Infof("Request allowed.")
+		log.Infof("Request allowed.")
 	} else {
 		reviewResponse.Allowed = false
 		reviewResponse.Result = &metav1.Status{
 			Message: err.Error(),
 		}
-		logrus.Infof("Request denied: %s", err)
+		log.Infof("Request denied: %s", err)
 	}
 
 	return &reviewResponse
@@ -127,7 +127,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		logrus.Errorf("contentType=%s, expect application/json", contentType)
+		log.Errorf("contentType=%s, expect application/json", contentType)
 		return
 	}
 
@@ -135,7 +135,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	ar := v1beta1.AdmissionReview{}
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&ar); err != nil {
-		logrus.Error(err)
+		log.Error(err)
 		reviewResponse = toAdmissionResponse(err)
 	} else {
 		reviewResponse = admit(ar)
@@ -150,7 +150,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	encoder := json.NewEncoder(w)
 	err := encoder.Encode(response)
 	if err != nil {
-		logrus.Error(err)
+		log.Error(err)
 	}
 }
 
@@ -168,8 +168,8 @@ func configTLS(config Config) (*tls.Config, error) {
 	}, nil
 }
 
-func textFormatter() logrus.Formatter {
-	return &logrus.TextFormatter{
+func textFormatter() log.Formatter {
+	return &log.TextFormatter{
 		DisableTimestamp: false,
 		FullTimestamp:    true,
 	}
@@ -181,9 +181,9 @@ func run() error {
 
 	switch config.LogFormat {
 	case "json":
-		logrus.SetFormatter(&logrus.JSONFormatter{})
+		log.SetFormatter(&log.JSONFormatter{})
 	case "text":
-		logrus.SetFormatter(textFormatter())
+		log.SetFormatter(textFormatter())
 	default:
 		return fmt.Errorf("log format '%s' is not recognized", config.LogFormat)
 	}
@@ -198,10 +198,10 @@ func run() error {
 		return fmt.Errorf("invalid sync interval: %s", err)
 	}
 
-	logrus.Infof("ToBAC v%s (%s)", version.Version, version.Revision)
-	logrus.Infof("Synchronizing team groups against Azure AD every %s", config.AzureSyncInterval)
-	logrus.Infof("Cluster administrator groups: %+v", config.ClusterAdmins)
-	logrus.Infof("Service user templates: %+v", config.ServiceUserTemplates)
+	log.Infof("ToBAC v%s (%s)", version.Version, version.Revision)
+	log.Infof("Synchronizing team groups against Azure AD every %s", config.AzureSyncInterval)
+	log.Infof("Cluster administrator groups: %+v", config.ClusterAdmins)
+	log.Infof("Service user templates: %+v", config.ServiceUserTemplates)
 
 	go teams.Sync(dur)
 
@@ -212,7 +212,7 @@ func run() error {
 	}
 	server.ListenAndServeTLS("", "")
 
-	logrus.Info("Shutting down cleanly.")
+	log.Info("Shutting down cleanly.")
 
 	return nil
 }
@@ -220,7 +220,7 @@ func run() error {
 func main() {
 	err := run()
 	if err != nil {
-		logrus.Errorf("Fatal error: %s", err)
+		log.Errorf("Fatal error: %s", err)
 		os.Exit(1)
 	}
 }
