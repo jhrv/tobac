@@ -50,7 +50,7 @@ func mockedTeamProvider(team string) azure.Team {
 }
 
 func TestClusterAdmin(t *testing.T) {
-	assert.NoError(t, tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "i-dont-care",
@@ -61,11 +61,12 @@ func TestClusterAdmin(t *testing.T) {
 			ClusterAdmins:        clusterAdmins,
 			ServiceUserTemplates: serviceUserTemplates,
 		},
-	))
+	)
+	assert.True(t, response.Allowed)
 }
 
 func TestRequireTeamLabel(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo:             authenticationv1.UserInfo{},
 			ClusterAdmins:        clusterAdmins,
@@ -74,11 +75,12 @@ func TestRequireTeamLabel(t *testing.T) {
 			SubmittedResource:    emptyResource,
 		},
 	)
-	assert.EqualError(t, err, tobac.ErrorNotTaggedWithTeamLabel)
+	assert.False(t, response.Allowed)
+	assert.Equal(t, tobac.ErrorNotTaggedWithTeamLabel, response.Reason)
 }
 
 func TestRequireTeamExists(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo:             authenticationv1.UserInfo{},
 			ClusterAdmins:        clusterAdmins,
@@ -87,11 +89,12 @@ func TestRequireTeamExists(t *testing.T) {
 			SubmittedResource:    resourceWithTeam("foo"),
 		},
 	)
-	assert.EqualError(t, err, fmt.Sprintf(tobac.ErrorTeamDoesNotExistInAzureAD, "foo"))
+	assert.False(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.ErrorTeamDoesNotExistInAzureAD, "foo"), response.Reason)
 }
 
 func TestRequireExistingTeamExists(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo:             authenticationv1.UserInfo{},
 			ClusterAdmins:        clusterAdmins,
@@ -101,11 +104,12 @@ func TestRequireExistingTeamExists(t *testing.T) {
 			ExistingResource:     resourceWithTeam("does-not-exist"),
 		},
 	)
-	assert.EqualError(t, err, fmt.Sprintf(tobac.ErrorExistingTeamDoesNotExistInAzureAD, "does-not-exist"))
+	assert.False(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.ErrorExistingTeamDoesNotExistInAzureAD, "does-not-exist"), response.Reason)
 }
 
 func TestRequireUserInExistingTeam(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "bar",
@@ -118,11 +122,12 @@ func TestRequireUserInExistingTeam(t *testing.T) {
 			ExistingResource:     resourceWithTeam("foo"),
 		},
 	)
-	assert.EqualError(t, err, fmt.Sprintf(tobac.ErrorUserHasNoAccessToTeam, "bar", "foo"))
+	assert.False(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.ErrorUserHasNoAccessToTeam, "bar", "foo"), response.Reason)
 }
 
 func TestAllowIfUserExistsInTeamCreate(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "bar",
@@ -136,11 +141,12 @@ func TestAllowIfUserExistsInTeamCreate(t *testing.T) {
 			SubmittedResource:    resourceWithTeam("foo"),
 		},
 	)
-	assert.NoError(t, err)
+	assert.True(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.SuccessUserBelongsToTeam, "foo"), response.Reason)
 }
 
 func TestAllowIfUserExistsInTeamUpdate(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "bar",
@@ -155,11 +161,12 @@ func TestAllowIfUserExistsInTeamUpdate(t *testing.T) {
 			ExistingResource:     resourceWithTeam("foo"),
 		},
 	)
-	assert.NoError(t, err)
+	assert.True(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.SuccessUserBelongsToTeam, "foo"), response.Reason)
 }
 
 func TestAllowIfUserExistsInTeamDelete(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "bar",
@@ -173,10 +180,11 @@ func TestAllowIfUserExistsInTeamDelete(t *testing.T) {
 			ExistingResource:     resourceWithTeam("foo"),
 		},
 	)
-	assert.NoError(t, err)
+	assert.True(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.SuccessUserBelongsToTeam, "foo"), response.Reason)
 }
 func TestAllowServiceUserCreate(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "serviceuser-foo",
@@ -188,11 +196,12 @@ func TestAllowServiceUserCreate(t *testing.T) {
 			SubmittedResource:    resourceWithTeam("foo"),
 		},
 	)
-	assert.NoError(t, err)
+	assert.True(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.SuccessUserMatchesServiceUserTemplate), response.Reason)
 }
 
 func TestAllowServiceUserUpdate(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "serviceuser-foo",
@@ -205,11 +214,12 @@ func TestAllowServiceUserUpdate(t *testing.T) {
 			ExistingResource:     resourceWithTeam("foo"),
 		},
 	)
-	assert.NoError(t, err)
+	assert.True(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.SuccessUserMatchesServiceUserTemplate), response.Reason)
 }
 
 func TestAllowServiceUserDelete(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "serviceuser-foo",
@@ -221,11 +231,12 @@ func TestAllowServiceUserDelete(t *testing.T) {
 			ExistingResource:     resourceWithTeam("foo"),
 		},
 	)
-	assert.NoError(t, err)
+	assert.True(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.SuccessUserMatchesServiceUserTemplate), response.Reason)
 }
 
 func TestAnnexationOfUnlabeledResource(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "bar",
@@ -240,11 +251,12 @@ func TestAnnexationOfUnlabeledResource(t *testing.T) {
 			ExistingResource:     emptyResource,
 		},
 	)
-	assert.NoError(t, err)
+	assert.True(t, response.Allowed)
+	assert.Equal(t, tobac.SuccessUserMayAnnexateOrphanResource, response.Reason)
 }
 
 func TestAnnexationOfLabeledResource(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "bar",
@@ -259,11 +271,12 @@ func TestAnnexationOfLabeledResource(t *testing.T) {
 			ExistingResource:     resourceWithTeam("baz"),
 		},
 	)
-	assert.EqualError(t, err, fmt.Sprintf(tobac.ErrorUserHasNoAccessToTeam, "bar", "baz"))
+	assert.False(t, response.Allowed)
+	assert.Equal(t, fmt.Sprintf(tobac.ErrorUserHasNoAccessToTeam, "bar", "baz"), response.Reason)
 }
 
 func TestMoveResourceToNewTeam(t *testing.T) {
-	err := tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
 				Username: "bar",
@@ -279,5 +292,5 @@ func TestMoveResourceToNewTeam(t *testing.T) {
 			ExistingResource:     resourceWithTeam("old-team"),
 		},
 	)
-	assert.NoError(t, err)
+	assert.True(t, response.Allowed)
 }

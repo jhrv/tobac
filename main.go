@@ -96,26 +96,28 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		log.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	}
 
-	reviewResponse := v1beta1.AdmissionResponse{}
-	err = tobac.Allowed(
+	response := tobac.Allowed(
 		tobac.Request{
-			UserInfo: ar.Request.UserInfo,
-			ExistingResource: previous,
-			SubmittedResource: resource,
-			ClusterAdmins: config.ClusterAdmins,
+			UserInfo:             ar.Request.UserInfo,
+			ExistingResource:     previous,
+			SubmittedResource:    resource,
+			ClusterAdmins:        config.ClusterAdmins,
 			ServiceUserTemplates: config.ServiceUserTemplates,
-			TeamProvider: teams.Get,
+			TeamProvider:         teams.Get,
 		},
 	)
-	if err == nil {
-		reviewResponse.Allowed = true
-		log.Infof("Request allowed.")
+
+	reviewResponse := v1beta1.AdmissionResponse{
+		Allowed: response.Allowed,
+		Result: &metav1.Status{
+			Message: response.Reason,
+		},
+	}
+
+	if response.Allowed {
+		log.Infof("Request allowed: %s", response.Reason)
 	} else {
-		reviewResponse.Allowed = false
-		reviewResponse.Result = &metav1.Status{
-			Message: err.Error(),
-		}
-		log.Infof("Request denied: %s", err)
+		log.Warningf("Request denied: %s", response.Reason)
 	}
 
 	return &reviewResponse

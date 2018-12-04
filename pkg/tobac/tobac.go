@@ -13,6 +13,11 @@ const ErrorTeamDoesNotExistInAzureAD = "team '%s' does not exist in Azure AD"
 const ErrorExistingTeamDoesNotExistInAzureAD = "team '%s' on existing resource does not exist in Azure AD"
 const ErrorUserHasNoAccessToTeam = "user '%s' has no access to team '%s'"
 
+const SuccessUserIsClusterAdmin = "user is cluster administrator through group '%s'"
+const SuccessUserBelongsToTeam = "user belongs to owner team '%s'"
+const SuccessUserMatchesServiceUserTemplate = "user matches service user template"
+const SuccessUserMayAnnexateOrphanResource = "resource did not have a team label set"
+
 // KubernetesResource represents any Kubernetes resource with standard object metadata structures.
 type KubernetesResource struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -26,6 +31,11 @@ type Request struct {
 	ClusterAdmins        []string
 	ServiceUserTemplates []string
 	TeamProvider         TeamProvider
+}
+
+type Response struct {
+	Allowed bool
+	Reason  string
 }
 
 type TeamProvider func(string) azure.Team
@@ -50,15 +60,16 @@ func hasServiceUserAccess(username, teamID string, templates []string) bool {
 	return false
 }
 
-func Allowed(request Request) error {
+func Allowed(request Request) Response {
 	var team azure.Team
 	var teamID string
+	var existingLabel string
 
 	// Allow if user is a cluster administrator
 	for _, userGroup := range request.UserInfo.Groups {
 		for _, adminGroup := range request.ClusterAdmins {
 			if userGroup == adminGroup {
-				return nil
+				return Response{Allowed: true, Reason: fmt.Sprintf(SuccessUserIsClusterAdmin, adminGroup)}
 			}
 		}
 	}
@@ -67,50 +78,63 @@ func Allowed(request Request) error {
 		// Deny if object is not tagged with a team label.
 		teamID = request.SubmittedResource.Labels["team"]
 		if len(teamID) == 0 {
-			return fmt.Errorf(ErrorNotTaggedWithTeamLabel)
+			return Response{Allowed: false, Reason: ErrorNotTaggedWithTeamLabel}
 		}
 
 		// Deny if specified team does not exist
 		team = request.TeamProvider(request.SubmittedResource.Labels["team"])
 		if !team.Valid() {
-			return fmt.Errorf(ErrorTeamDoesNotExistInAzureAD, request.SubmittedResource.Labels["team"])
+			return Response{Allowed: false, Reason: fmt.Sprintf(ErrorTeamDoesNotExistInAzureAD, request.SubmittedResource.Labels["team"])}
 		}
 	}
 
 	// This is an update situation. We must check if the user has access to modify the original resource.
 	if request.ExistingResource != nil {
-		label := request.ExistingResource.Labels["team"]
+		existingLabel = request.ExistingResource.Labels["team"]
 
 		// If the existing resource does not have a team label, skip permission checks.
-		if len(label) > 0 {
+		if len(existingLabel) > 0 {
 
 			// Deny if existing team does not exist.
-			existingTeam := request.TeamProvider(label)
+			existingTeam := request.TeamProvider(existingLabel)
 			if !existingTeam.Valid() {
-				return fmt.Errorf(ErrorExistingTeamDoesNotExistInAzureAD, label)
+				return Response{Allowed: false, Reason: fmt.Sprintf(ErrorExistingTeamDoesNotExistInAzureAD, existingLabel)}
 			}
 
 			// If user doesn't belong to the correct team, nor is in the service account access list, deny access.
-			if !stringInSlice(request.UserInfo.Groups, existingTeam.AzureUUID) && !hasServiceUserAccess(request.UserInfo.Username, existingTeam.ID, request.ServiceUserTemplates) {
-				return fmt.Errorf(ErrorUserHasNoAccessToTeam, request.UserInfo.Username, existingTeam.ID)
+			serviceUserAccess := hasServiceUserAccess(request.UserInfo.Username, existingTeam.ID, request.ServiceUserTemplates)
+			if !stringInSlice(request.UserInfo.Groups, existingTeam.AzureUUID) && !serviceUserAccess {
+				return Response{Allowed: false, Reason: fmt.Sprintf(ErrorUserHasNoAccessToTeam, request.UserInfo.Username, existingTeam.ID)}
+			}
+
+			// Allow deletes here, since there is no new resource to check
+			if request.SubmittedResource == nil {
+				if serviceUserAccess {
+					return Response{Allowed: true, Reason: SuccessUserMatchesServiceUserTemplate}
+				}
+				return Response{Allowed: true, Reason: fmt.Sprintf(SuccessUserBelongsToTeam, existingLabel)}
 			}
 		}
 
+		// Allow deletes here, since there is no new resource to check
 		if request.SubmittedResource == nil {
-			return nil
+			return Response{Allowed: true, Reason: SuccessUserMayAnnexateOrphanResource}
 		}
 	}
 
 	// Finally, allow if user exists in the specified team
 	if stringInSlice(request.UserInfo.Groups, team.AzureUUID) {
-		return nil
+		if request.ExistingResource != nil && len(existingLabel) == 0 {
+			return Response{Allowed: true, Reason: SuccessUserMayAnnexateOrphanResource}
+		}
+		return Response{Allowed: true, Reason: fmt.Sprintf(SuccessUserBelongsToTeam, team.ID)}
 	}
 
 	// If user does not exist in the specified team, try to match against service user templates.
 	if hasServiceUserAccess(request.UserInfo.Username, team.ID, request.ServiceUserTemplates) {
-		return nil
+		return Response{Allowed: true, Reason: SuccessUserMatchesServiceUserTemplate}
 	}
 
 	// default deny
-	return fmt.Errorf(ErrorUserHasNoAccessToTeam, request.UserInfo.Username, teamID)
+	return Response{Allowed: false, Reason: fmt.Sprintf(ErrorUserHasNoAccessToTeam, request.UserInfo.Username, teamID)}
 }
