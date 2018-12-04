@@ -99,8 +99,8 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		log.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	}
 
-	log.Tracef("resource/old: %s", resource)
-	log.Tracef("resource/new: %s", previous)
+	log.Tracef("resource/old: %+v", resource)
+	log.Tracef("resource/new: %+v", previous)
 
 	response := tobac.Allowed(
 		tobac.Request{
