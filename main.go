@@ -26,6 +26,7 @@ type Config struct {
 	AzureSyncInterval    string
 	ServiceUserTemplates []string
 	ClusterAdmins        []string
+	LogLevel             string
 }
 
 func DefaultConfig() *Config {
@@ -35,6 +36,7 @@ func DefaultConfig() *Config {
 		AzureSyncInterval:    "10m",
 		ServiceUserTemplates: []string{"system:serviceaccount:default:serviceuser-%s"},
 		LogFormat:            "text",
+		LogLevel:             "info",
 	}
 }
 
@@ -47,6 +49,7 @@ func (c *Config) addFlags() {
 	flag.StringVar(&c.AzureSyncInterval, "azure-sync-interval", c.AzureSyncInterval, "How often to synchronize the team list against Azure AD.")
 	flag.StringSliceVar(&c.ServiceUserTemplates, "service-user-templates", c.ServiceUserTemplates, "List of Kubernetes users that will be granted access to resources. %s will be replaced by the team label.")
 	flag.StringSliceVar(&c.ClusterAdmins, "cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
+	flag.StringVar(&c.LogLevel, "log-level", c.LogLevel, "Logging verbosity level.")
 }
 
 func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
@@ -189,6 +192,12 @@ func run() error {
 	default:
 		return fmt.Errorf("log format '%s' is not recognized", config.LogFormat)
 	}
+
+	logLevel, err := log.ParseLevel(config.LogLevel)
+	if err != nil {
+		return fmt.Errorf("while setting log level: %s", err)
+	}
+	log.SetLevel(logLevel)
 
 	tlsConfig, err := configTLS(*config)
 	if err != nil {
