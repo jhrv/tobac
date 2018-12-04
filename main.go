@@ -81,8 +81,7 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return nil
 	}
 
-	log.Tracef("resource/old: %s", string(ar.Request.OldObject.Raw))
-	log.Tracef("resource/new: %s", string(ar.Request.Object.Raw))
+	log.Tracef("request: %+v", ar.Request)
 
 	previous, err := decode(ar.Request.OldObject.Raw)
 	if err != nil {
