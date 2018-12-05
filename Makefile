@@ -3,6 +3,9 @@ LDFLAGS := -X github.com/nais/tobac/pkg/version.Revision=$(shell git rev-parse -
 build:
 	go build
 
+test:
+	go test ./... -count=1
+
 release:
 	go build -a -installsuffix cgo -o tobac -ldflags "-s $(LDFLAGS)"
 
