@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -81,8 +82,6 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return nil
 	}
 
-	log.Tracef("request: %+v", ar.Request)
-
 	previous, err := decode(ar.Request.OldObject.Raw)
 	if err != nil {
 		log.Error(err)
@@ -143,7 +142,16 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 
 	var reviewResponse *v1beta1.AdmissionResponse
 	ar := v1beta1.AdmissionReview{}
-	decoder := json.NewDecoder(r.Body)
+
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	log.Tracef("request: %s", string(data))
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(&ar); err != nil {
 		log.Error(err)
 		reviewResponse = toAdmissionResponse(err)
@@ -158,7 +166,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	}
 
 	encoder := json.NewEncoder(w)
-	err := encoder.Encode(response)
+	err = encoder.Encode(response)
 	if err != nil {
 		log.Error(err)
 	}
