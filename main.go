@@ -253,8 +253,8 @@ func run() error {
 	}
 
 	// Switch off TLS verification if needed
-	if !config.APIServerInsecureTLS {
-		k8sconfig.TLSClientConfig.Insecure = config.APIServerInsecureTLS
+	if config.APIServerInsecureTLS {
+		k8sconfig.TLSClientConfig.Insecure = true
 		k8sconfig.TLSClientConfig.CAFile = ""
 	}
 
