@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/nais/tobac/pkg/kubeclient"
 	"github.com/nais/tobac/pkg/teams"
 	"github.com/nais/tobac/pkg/tobac"
 	"github.com/nais/tobac/pkg/version"
@@ -17,6 +18,7 @@ import (
 	flag "github.com/spf13/pflag"
 	"k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // Config contains the server (the webhook) cert and key.
@@ -42,6 +44,8 @@ func DefaultConfig() *Config {
 }
 
 var config = DefaultConfig()
+
+var kubeClient kubernetes.Interface
 
 func (c *Config) addFlags() {
 	flag.StringVar(&c.CertFile, "cert", c.CertFile, "File containing the x509 certificate for HTTPS.")
@@ -212,6 +216,13 @@ func run() error {
 	}
 	log.SetLevel(logLevel)
 
+	log.Infof("ToBAC v%s (%s)", version.Version, version.Revision)
+
+	kubeClient, err = kubeclient.New()
+	if err != nil {
+		return fmt.Errorf("while setting up Kubernetes client: %s", err)
+	}
+
 	tlsConfig, err := configTLS(*config)
 	if err != nil {
 		return fmt.Errorf("while setting up TLS: %s", err)
@@ -222,7 +233,6 @@ func run() error {
 		return fmt.Errorf("invalid sync interval: %s", err)
 	}
 
-	log.Infof("ToBAC v%s (%s)", version.Version, version.Revision)
 	log.Infof("Synchronizing team groups against Azure AD every %s", config.AzureSyncInterval)
 	log.Infof("Cluster administrator groups: %+v", config.ClusterAdmins)
 	log.Infof("Service user templates: %+v", config.ServiceUserTemplates)

@@ -1,4 +1,4 @@
 package version
 
-var Revision = "unknown" // Git commit hash
-var Version = "unknown"  // Numeric version
+var Revision = "local development version" // Git commit hash
+var Version = "0"  // Numeric version
