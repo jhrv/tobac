@@ -251,7 +251,12 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("while getting Kubernetes config: %s", err)
 	}
-	k8sconfig.TLSClientConfig.Insecure = config.APIServerInsecureTLS
+
+	// Switch off TLS verification if needed
+	if !config.APIServerInsecureTLS {
+		k8sconfig.TLSClientConfig.Insecure = config.APIServerInsecureTLS
+		k8sconfig.TLSClientConfig.CAFile = ""
+	}
 
 	kubeClient, err = kubeclient.New(k8sconfig)
 	if err != nil {
