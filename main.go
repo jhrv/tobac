@@ -30,6 +30,7 @@ type Config struct {
 	ServiceUserTemplates []string
 	ClusterAdmins        []string
 	LogLevel             string
+	APIServerInsecureTLS bool
 }
 
 func DefaultConfig() *Config {
@@ -40,6 +41,7 @@ func DefaultConfig() *Config {
 		ServiceUserTemplates: []string{"system:serviceaccount:default:serviceuser-%s"},
 		LogFormat:            "text",
 		LogLevel:             "info",
+		APIServerInsecureTLS: false,
 	}
 }
 
@@ -55,6 +57,7 @@ func (c *Config) addFlags() {
 	flag.StringSliceVar(&c.ServiceUserTemplates, "service-user-templates", c.ServiceUserTemplates, "List of Kubernetes users that will be granted access to resources. %s will be replaced by the team label.")
 	flag.StringSliceVar(&c.ClusterAdmins, "cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
 	flag.StringVar(&c.LogLevel, "log-level", c.LogLevel, "Logging verbosity level.")
+	flag.BoolVar(&c.APIServerInsecureTLS, "apiserver-insecure-tls", c.APIServerInsecureTLS, "Turn off TLS verification for the Kubernetes API server connection.")
 }
 
 func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
@@ -244,7 +247,13 @@ func run() error {
 
 	log.Infof("ToBAC v%s (%s)", version.Version, version.Revision)
 
-	kubeClient, err = kubeclient.New()
+	k8sconfig, err := kubeclient.Config()
+	if err != nil {
+		return fmt.Errorf("while getting Kubernetes config: %s", err)
+	}
+	k8sconfig.TLSClientConfig.Insecure = config.APIServerInsecureTLS
+
+	kubeClient, err = kubeclient.New(k8sconfig)
 	if err != nil {
 		return fmt.Errorf("while setting up Kubernetes client: %s", err)
 	}

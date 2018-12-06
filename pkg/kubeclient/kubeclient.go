@@ -13,12 +13,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func New() (dynamic.Interface, error) {
-	config, err := config()
-	if err != nil {
-		return nil, err
-	}
-
+func New(config *rest.Config) (dynamic.Interface, error) {
 	return dynamic.NewForConfig(config)
 }
 
@@ -40,7 +35,7 @@ func kubeconfig() (string, error) {
 	return env, nil
 }
 
-func config() (*rest.Config, error) {
+func Config() (*rest.Config, error) {
 	path, err := kubeconfig()
 	if err != nil {
 		log.Info(err.Error())
