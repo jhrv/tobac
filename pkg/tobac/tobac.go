@@ -26,8 +26,8 @@ type KubernetesResource struct {
 
 type Request struct {
 	UserInfo             authenticationv1.UserInfo
-	ExistingResource     *KubernetesResource
-	SubmittedResource    *KubernetesResource
+	ExistingResource     metav1.Object
+	SubmittedResource    metav1.Object
 	ClusterAdmins        []string
 	ServiceUserTemplates []string
 	TeamProvider         TeamProvider
@@ -76,21 +76,21 @@ func Allowed(request Request) Response {
 
 	if request.SubmittedResource != nil {
 		// Deny if object is not tagged with a team label.
-		teamID = request.SubmittedResource.Labels["team"]
+		teamID = request.SubmittedResource.GetLabels()["team"]
 		if len(teamID) == 0 {
 			return Response{Allowed: false, Reason: ErrorNotTaggedWithTeamLabel}
 		}
 
 		// Deny if specified team does not exist
-		team = request.TeamProvider(request.SubmittedResource.Labels["team"])
+		team = request.TeamProvider(teamID)
 		if !team.Valid() {
-			return Response{Allowed: false, Reason: fmt.Sprintf(ErrorTeamDoesNotExistInAzureAD, request.SubmittedResource.Labels["team"])}
+			return Response{Allowed: false, Reason: fmt.Sprintf(ErrorTeamDoesNotExistInAzureAD, teamID)}
 		}
 	}
 
 	// This is an update situation. We must check if the user has access to modify the original resource.
 	if request.ExistingResource != nil {
-		existingLabel = request.ExistingResource.Labels["team"]
+		existingLabel = request.ExistingResource.GetLabels()["team"]
 
 		// If the existing resource does not have a team label, skip permission checks.
 		if len(existingLabel) > 0 {

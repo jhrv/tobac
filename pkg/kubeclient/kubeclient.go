@@ -5,18 +5,31 @@ import (
 	"os"
 
 	log "github.com/sirupsen/logrus"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/api/admission/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func New() (*kubernetes.Clientset, error) {
+func New() (dynamic.Interface, error) {
 	config, err := config()
 	if err != nil {
 		return nil, err
 	}
 
-	return kubernetes.NewForConfig(config)
+	return dynamic.NewForConfig(config)
+}
+
+func ObjectFromAdmissionRequest(client dynamic.Interface, req *v1beta1.AdmissionRequest) (metav1.Object, error) {
+	identifier := schema.GroupVersionResource{
+		Group:    req.Resource.Group,
+		Version:  req.Resource.Version,
+		Resource: req.Resource.Resource,
+	}
+	c := client.Resource(identifier)
+	return c.Namespace(req.Namespace).Get(req.Name, metav1.GetOptions{})
 }
 
 func kubeconfig() (string, error) {

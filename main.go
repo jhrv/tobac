@@ -18,7 +18,7 @@ import (
 	flag "github.com/spf13/pflag"
 	"k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/dynamic"
 )
 
 // Config contains the server (the webhook) cert and key.
@@ -45,7 +45,7 @@ func DefaultConfig() *Config {
 
 var config = DefaultConfig()
 
-var kubeClient kubernetes.Interface
+var kubeClient dynamic.Interface
 
 func (c *Config) addFlags() {
 	flag.StringVar(&c.CertFile, "cert", c.CertFile, "File containing the x509 certificate for HTTPS.")
@@ -98,25 +98,51 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		return nil
 	}
 
+	req := tobac.Request{
+		UserInfo:             ar.Request.UserInfo,
+		ExistingResource:     previous,
+		SubmittedResource:    resource,
+		ClusterAdmins:        config.ClusterAdmins,
+		ServiceUserTemplates: config.ServiceUserTemplates,
+		TeamProvider:         teams.Get,
+	}
+
 	if resource != nil && len(resource.SelfLink) > 0 {
 		log.Infof("Request '%s' from user '%s' in groups %+v", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	} else {
 		log.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	}
 
+	// These checks are needed in order to avoid a null pointer exception in tobac.Allowed().
+	// Interfaces can be nil checked, but the instances they're pointing to can be nil and
+	// still pass through that check.
+	if previous == nil {
+		req.ExistingResource = nil
+	}
+	if resource == nil {
+		req.SubmittedResource = nil
+	}
+
+	// If this is a DELETE request, the previous resource is not included,
+	// and we need to retrieve the object from the Kubernetes API server.
+	//
+	// See https://github.com/kubernetes/kubernetes/pull/27193
+	// See https://github.com/kubernetes/kubernetes/pull/66535
+	if resource == nil && previous == nil {
+		log.Debug("Request has no current or previous resource, attempting to fetch object from Kubernetes.")
+		e, err := kubeclient.ObjectFromAdmissionRequest(kubeClient, ar.Request)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
+		log.Debugf("Previous object retrieved from %s", e.GetSelfLink())
+		req.ExistingResource = e
+	}
+
 	log.Tracef("parsed/old: %+v", resource)
 	log.Tracef("parsed/new: %+v", previous)
 
-	response := tobac.Allowed(
-		tobac.Request{
-			UserInfo:             ar.Request.UserInfo,
-			ExistingResource:     previous,
-			SubmittedResource:    resource,
-			ClusterAdmins:        config.ClusterAdmins,
-			ServiceUserTemplates: config.ServiceUserTemplates,
-			TeamProvider:         teams.Get,
-		},
-	)
+	response := tobac.Allowed(req)
 
 	reviewResponse := v1beta1.AdmissionResponse{
 		Allowed: response.Allowed,
