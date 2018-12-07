@@ -104,6 +104,6 @@ func Teams(ctx context.Context) (map[string]Team, error) {
 
 // DefaultContext returns a context that will time out after one second.
 // Remember to call CancelFunc when you are done.
-func DefaultContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 1*time.Second)
+func DefaultContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), timeout)
 }

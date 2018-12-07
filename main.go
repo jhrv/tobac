@@ -26,6 +26,7 @@ type Config struct {
 	CertFile             string
 	KeyFile              string
 	LogFormat            string
+	AzureTimeout         string
 	AzureSyncInterval    string
 	ServiceUserTemplates []string
 	ClusterAdmins        []string
@@ -37,6 +38,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		CertFile:             "/etc/tobac/tls.crt",
 		KeyFile:              "/etc/tobac/tls.key",
+		AzureTimeout:         "5s",
 		AzureSyncInterval:    "10m",
 		ServiceUserTemplates: []string{"system:serviceaccount:default:serviceuser-%s"},
 		LogFormat:            "text",
@@ -54,6 +56,7 @@ func (c *Config) addFlags() {
 	flag.StringVar(&c.KeyFile, "key", c.KeyFile, "File containing the x509 private key.")
 	flag.StringVar(&c.LogFormat, "log-format", c.LogFormat, "Log format, either 'json' or 'text'.")
 	flag.StringVar(&c.AzureSyncInterval, "azure-sync-interval", c.AzureSyncInterval, "How often to synchronize the team list against Azure AD.")
+	flag.StringVar(&c.AzureTimeout, "azure-timeout", c.AzureSyncInterval, "Query timeout during Azure AD synchronization.")
 	flag.StringSliceVar(&c.ServiceUserTemplates, "service-user-templates", c.ServiceUserTemplates, "List of Kubernetes users that will be granted access to resources. %s will be replaced by the team label.")
 	flag.StringSliceVar(&c.ClusterAdmins, "cluster-admins", c.ClusterAdmins, "Commas-separated list of groups that are allowed to perform any action.")
 	flag.StringVar(&c.LogLevel, "log-level", c.LogLevel, "Logging verbosity level.")
@@ -273,11 +276,16 @@ func run() error {
 		return fmt.Errorf("invalid sync interval: %s", err)
 	}
 
+	timeout, err := time.ParseDuration(config.AzureTimeout)
+	if err != nil {
+		return fmt.Errorf("invalid query timeout: %s", err)
+	}
+
 	log.Infof("Synchronizing team groups against Azure AD every %s", config.AzureSyncInterval)
 	log.Infof("Cluster administrator groups: %+v", config.ClusterAdmins)
 	log.Infof("Service user templates: %+v", config.ServiceUserTemplates)
 
-	go teams.Sync(dur)
+	go teams.Sync(dur, timeout)
 
 	http.HandleFunc("/", serveAny)
 	server := &http.Server{

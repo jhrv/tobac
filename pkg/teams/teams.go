@@ -13,8 +13,8 @@ var mutex sync.Mutex
 var teamList map[string]azure.Team
 
 // Sync keeps local copy of teamList in sync
-func Sync(interval time.Duration) {
-	ctx, cancelFunc := azure.DefaultContext()
+func Sync(interval, timeout time.Duration) {
+	ctx, cancelFunc := azure.DefaultContext(timeout)
 	timer := time.NewTimer(interval)
 	defer cancelFunc()
 
