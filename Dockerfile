@@ -15,4 +15,6 @@ MAINTAINER Kim Tore Jensen <kimtjen@gmail.com>
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /src/tobac /app/tobac
+EXPOSE 8080
+EXPOSE 8443
 CMD ["/app/tobac"]

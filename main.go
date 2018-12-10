@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nais/tobac/pkg/kubeclient"
+	"github.com/nais/tobac/pkg/metrics"
 	"github.com/nais/tobac/pkg/teams"
 	"github.com/nais/tobac/pkg/tobac"
 	"github.com/nais/tobac/pkg/version"
@@ -197,6 +198,11 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 
 	response := v1beta1.AdmissionReview{}
 	if reviewResponse != nil {
+		if reviewResponse.Allowed {
+			metrics.Admitted.Inc()
+		} else {
+			metrics.Denied.Inc()
+		}
 		response.Response = reviewResponse
 		response.Response.UID = ar.Request.UID
 	}
@@ -286,6 +292,7 @@ func run() error {
 	log.Infof("Service user templates: %+v", config.ServiceUserTemplates)
 
 	go teams.Sync(dur, timeout)
+	go metrics.Serve(":8080", "/metrics", "/ready", "/alive")
 
 	http.HandleFunc("/", serveAny)
 	server := &http.Server{
