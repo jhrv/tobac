@@ -14,13 +14,12 @@ var teamList map[string]azure.Team
 
 // Sync keeps local copy of teamList in sync
 func Sync(interval, timeout time.Duration) {
-	ctx, cancelFunc := azure.DefaultContext(timeout)
 	timer := time.NewTimer(interval)
-	defer cancelFunc()
 
 	for {
 		timer.Reset(interval)
 		log.Infof("Retrieving teams from MS Graph API")
+		ctx, _ := azure.DefaultContext(timeout)
 		teams, err := azure.Teams(ctx)
 		if err != nil {
 			log.Errorf("while retrieving teams: %s", err)
