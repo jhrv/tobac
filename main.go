@@ -114,8 +114,15 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		TeamProvider:         teams.Get,
 	}
 
-	if resource != nil && len(resource.SelfLink) > 0 {
-		log.Infof("Request '%s' from user '%s' in groups %+v", resource.SelfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
+	var selfLink string
+	if previous != nil {
+		selfLink = previous.GetSelfLink()
+	} else if resource != nil {
+		selfLink = resource.GetSelfLink()
+	}
+
+	if len(selfLink) > 0 {
+		log.Infof("Request '%s' from user '%s' in groups %+v", selfLink, ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	} else {
 		log.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	}
@@ -142,12 +149,13 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 			log.Error(err)
 			return nil
 		}
+		selfLink = e.GetSelfLink()
 		log.Debugf("Previous object retrieved from %s", e.GetSelfLink())
 		req.ExistingResource = e
 	}
 
-	log.Tracef("parsed/old: %+v", resource)
-	log.Tracef("parsed/new: %+v", previous)
+	log.Tracef("parsed/old: %+v", previous)
+	log.Tracef("parsed/new: %+v", resource)
 
 	response := tobac.Allowed(req)
 
@@ -158,10 +166,18 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		},
 	}
 
+	fields := log.Fields{
+		"user": ar.Request.UserInfo.Username,
+		"groups": ar.Request.UserInfo.Groups,
+		"namespace": ar.Request.Namespace,
+		"resource": selfLink,
+	}
+	logEntry := log.WithFields(fields)
+
 	if response.Allowed {
-		log.Infof("Request allowed: %s", response.Reason)
+		logEntry.Infof("Request allowed: %s", response.Reason)
 	} else {
-		log.Warningf("Request denied: %s", response.Reason)
+		logEntry.Warningf("Request denied: %s", response.Reason)
 	}
 
 	return &reviewResponse
