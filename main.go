@@ -170,6 +170,8 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		"user": ar.Request.UserInfo.Username,
 		"groups": ar.Request.UserInfo.Groups,
 		"namespace": ar.Request.Namespace,
+		"operation": ar.Request.Operation,
+		"subresource": ar.Request.SubResource,
 		"resource": selfLink,
 	}
 	logEntry := log.WithFields(fields)
