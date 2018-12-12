@@ -17,7 +17,7 @@ func New(config *rest.Config) (dynamic.Interface, error) {
 	return dynamic.NewForConfig(config)
 }
 
-func ObjectFromAdmissionRequest(client dynamic.Interface, req *v1beta1.AdmissionRequest) (metav1.Object, error) {
+func ObjectFromAdmissionRequest(client dynamic.Interface, req v1beta1.AdmissionRequest) (metav1.Object, error) {
 	identifier := schema.GroupVersionResource{
 		Group:    req.Resource.Group,
 		Version:  req.Resource.Version,

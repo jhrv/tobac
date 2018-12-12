@@ -137,7 +137,7 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	// See https://github.com/kubernetes/kubernetes/pull/66535
 	if resource == nil && previous == nil {
 		log.Debug("Request has no current or previous resource, attempting to fetch object from Kubernetes.")
-		e, err := kubeclient.ObjectFromAdmissionRequest(kubeClient, ar.Request)
+		e, err := kubeclient.ObjectFromAdmissionRequest(kubeClient, *ar.Request)
 		if err != nil {
 			log.Error(err)
 			return nil
