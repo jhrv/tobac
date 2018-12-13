@@ -42,13 +42,7 @@ func (team Team) Valid() bool {
 	return len(team.AzureUUID) > 0 && len(team.ID) > 0
 }
 
-var cachedClient *http.Client
-
 func client(ctx context.Context) *http.Client {
-	if cachedClient != nil {
-		return cachedClient
-	}
-
 	config := clientcredentials.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -56,8 +50,7 @@ func client(ctx context.Context) *http.Client {
 		TokenURL:     microsoft.AzureADEndpoint(tenantID).TokenURL,
 	}
 
-	cachedClient = config.Client(ctx)
-	return cachedClient
+	return config.Client(ctx)
 }
 
 func get(ctx context.Context, path string, target interface{}) error {
@@ -102,7 +95,7 @@ func Teams(ctx context.Context) (map[string]Team, error) {
 	return teams, nil
 }
 
-// DefaultContext returns a context that will time out after one second.
+// DefaultContext returns a context that will time out.
 // Remember to call CancelFunc when you are done.
 func DefaultContext(timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), timeout)
