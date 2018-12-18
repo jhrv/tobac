@@ -23,6 +23,7 @@ func ObjectFromAdmissionRequest(client dynamic.Interface, req v1beta1.AdmissionR
 		Version:  req.Resource.Version,
 		Resource: req.Resource.Resource,
 	}
+	log.Debug(fmt.Sprintf("using %+v to look up resource '%s' in namespace '%s'", identifier, req.Name, req.Namespace))
 	c := client.Resource(identifier)
 	return c.Namespace(req.Namespace).Get(req.Name, metav1.GetOptions{})
 }
