@@ -13,9 +13,6 @@ jobs:
           name: Create workspace
           command: mkdir -p /tmp/workspace
       - run:
-          name: Bump version temporarily for build
-          command: ./bump.sh
-      - run:
           name: Build Docker container
           command: docker build -t navikt/tobac:latest .
       - run:
@@ -42,22 +39,12 @@ jobs:
           name: Login to Dockerhub
           command: docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
       - run:
-          name: Bump version
-          command: ./bump.sh
-      - run:
           name: Release new version
           command: |
-            version=$(cat version)
-            git commit version -m "Release version ${version} [skip ci]"
-            git tag ${version}
-            git push
-            git push --tags
-      - run:
-          name: Push Docker container
-          command: |
-            docker tag navikt/tobac:latest navikt/tobac:$(cat version)
+            version=$(date "+%Y-%m-%d")-$(git --no-pager log -1 --pretty=%h)
+            docker tag navikt/tobac:latest navikt/tobac:${version}
             docker push navikt/tobac:latest
-            docker push navikt/tobac:$(cat version)
+            docker push navikt/tobac:${version}
 
 workflows:
   version: 2
