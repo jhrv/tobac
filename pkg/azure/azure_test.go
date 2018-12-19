@@ -11,7 +11,7 @@ import (
 )
 
 func TestAzure(t *testing.T) {
-	ctx, _ := azure.DefaultContext(1*time.Second)
+	ctx, _ := azure.DefaultContext(1 * time.Second)
 
 	teams, err := azure.Teams(ctx)
 	if err != nil {

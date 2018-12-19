@@ -19,9 +19,7 @@ var serviceUserTemplates = []string{
 	"serviceuser-%s",
 }
 
-var emptyResource = &tobac.KubernetesResource{
-
-}
+var emptyResource = &tobac.KubernetesResource{}
 
 func resourceWithTeam(team string) *tobac.KubernetesResource {
 	return &tobac.KubernetesResource{
