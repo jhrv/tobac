@@ -267,13 +267,19 @@ func textFormatter() log.Formatter {
 	}
 }
 
+func jsonFormatter() log.Formatter {
+	return &log.JSONFormatter{
+		TimestampFormat: time.RFC3339Nano,
+	}
+}
+
 func run() error {
 	config.addFlags()
 	flag.Parse()
 
 	switch config.LogFormat {
 	case "json":
-		log.SetFormatter(&log.JSONFormatter{})
+		log.SetFormatter(jsonFormatter())
 	case "text":
 		log.SetFormatter(textFormatter())
 	default:
