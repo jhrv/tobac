@@ -64,10 +64,11 @@ func (c *Config) addFlags() {
 	flag.BoolVar(&c.APIServerInsecureTLS, "apiserver-insecure-tls", c.APIServerInsecureTLS, "Turn off TLS verification for the Kubernetes API server connection.")
 }
 
-func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
+func genericErrorResponse(format string, a ...interface{}) *v1beta1.AdmissionResponse {
 	return &v1beta1.AdmissionResponse{
+		Allowed: false,
 		Result: &metav1.Status{
-			Message: err.Error(),
+			Message: fmt.Sprintf(format, a...),
 		},
 	}
 }
@@ -87,22 +88,19 @@ func decode(raw []byte) (*tobac.KubernetesResource, error) {
 	return k, nil
 }
 
-func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+func admitCallback(ar v1beta1.AdmissionReview) (*v1beta1.AdmissionResponse, error) {
 	if ar.Request == nil {
-		log.Warning("Admission review request is nil")
-		return nil
+		return nil, fmt.Errorf("admission review request is empty")
 	}
 
 	previous, err := decode(ar.Request.OldObject.Raw)
 	if err != nil {
-		log.Error(err)
-		return nil
+		return nil, fmt.Errorf("while decoding old resource: %s", err)
 	}
 
 	resource, err := decode(ar.Request.Object.Raw)
 	if err != nil {
-		log.Error(err)
-		return nil
+		return nil, fmt.Errorf("while decoding resource: %s", err)
 	}
 
 	req := tobac.Request{
@@ -146,8 +144,7 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		log.Debug("Request has no current or previous resource, attempting to fetch object from Kubernetes.")
 		e, err := kubeclient.ObjectFromAdmissionRequest(kubeClient, *ar.Request)
 		if err != nil {
-			log.Error(err)
-			return nil
+			return nil, fmt.Errorf("while retrieving resource: %s", err)
 		}
 		selfLink = e.GetSelfLink()
 		log.Debugf("Previous object retrieved from %s", e.GetSelfLink())
@@ -159,7 +156,7 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 
 	response := tobac.Allowed(req)
 
-	reviewResponse := v1beta1.AdmissionResponse{
+	reviewResponse := &v1beta1.AdmissionResponse{
 		Allowed: response.Allowed,
 		Result: &metav1.Status{
 			Message: response.Reason,
@@ -167,12 +164,12 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	}
 
 	fields := log.Fields{
-		"user": ar.Request.UserInfo.Username,
-		"groups": ar.Request.UserInfo.Groups,
-		"namespace": ar.Request.Namespace,
-		"operation": ar.Request.Operation,
+		"user":        ar.Request.UserInfo.Username,
+		"groups":      ar.Request.UserInfo.Groups,
+		"namespace":   ar.Request.Namespace,
+		"operation":   ar.Request.Operation,
 		"subresource": ar.Request.SubResource,
-		"resource": selfLink,
+		"resource":    selfLink,
 	}
 	logEntry := log.WithFields(fields)
 
@@ -182,17 +179,16 @@ func admitCallback(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		logEntry.Warningf("Request denied: %s", response.Reason)
 	}
 
-	return &reviewResponse
+	return reviewResponse, nil
 }
 
-type admitFunc func(v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
+func reply(r *http.Request) (*v1beta1.AdmissionReview, error) {
+	var err error
 
-func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		log.Errorf("contentType=%s, expect application/json", contentType)
-		return
+		return nil, fmt.Errorf("contentType=%s, expect application/json", contentType)
 	}
 
 	var reviewResponse *v1beta1.AdmissionResponse
@@ -200,40 +196,49 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Error(err)
-		return
+		return nil, fmt.Errorf("while reading admission request: %s", err)
 	}
 
 	log.Tracef("request: %s", string(data))
 
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(&ar); err != nil {
-		log.Error(err)
-		reviewResponse = toAdmissionResponse(err)
+		reviewResponse = genericErrorResponse(err.Error())
 	} else {
-		reviewResponse = admit(ar)
+		reviewResponse, err = admitCallback(ar)
 	}
 
-	response := v1beta1.AdmissionReview{}
-	if reviewResponse != nil {
-		if reviewResponse.Allowed {
-			metrics.Admitted.Inc()
-		} else {
-			metrics.Denied.Inc()
-		}
-		response.Response = reviewResponse
-		response.Response.UID = ar.Request.UID
+	reviewResponse.UID = ar.Request.UID
+
+	return &v1beta1.AdmissionReview{
+		Response: reviewResponse,
+	}, nil
+}
+
+func serve(w http.ResponseWriter, r *http.Request) {
+	review, err := reply(r)
+
+	if err != nil {
+		log.Errorf("while generating review response: %s", err)
+	}
+
+	// if there is no review response at this point, we simply cannot provide the API server with a meaningful reply
+	// because we couldn't decode a request UID.
+	if review == nil {
+		return
+	}
+
+	if review.Response.Allowed {
+		metrics.Admitted.Inc()
+	} else {
+		metrics.Denied.Inc()
 	}
 
 	encoder := json.NewEncoder(w)
-	err = encoder.Encode(response)
+	err = encoder.Encode(review)
 	if err != nil {
-		log.Error(err)
+		log.Errorf("while sending review response: %s", err)
 	}
-}
-
-func serveAny(w http.ResponseWriter, r *http.Request) {
-	serve(w, r, admitCallback)
 }
 
 func configTLS(config Config) (*tls.Config, error) {
@@ -312,7 +317,7 @@ func run() error {
 	go teams.Sync(dur, timeout)
 	go metrics.Serve(":8080", "/metrics", "/ready", "/alive")
 
-	http.HandleFunc("/", serveAny)
+	http.HandleFunc("/", serve)
 	server := &http.Server{
 		Addr:      ":8443",
 		TLSConfig: tlsConfig,
