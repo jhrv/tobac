@@ -125,6 +125,14 @@ func admitCallback(ar v1beta1.AdmissionReview) (*v1beta1.AdmissionResponse, erro
 		log.Infof("Request from user '%s' in groups %+v", ar.Request.UserInfo.Username, ar.Request.UserInfo.Groups)
 	}
 
+	// If this is a request to execute a command in a pod, the original resource is not sent with the request,
+	// and we need to retrieve it to check team membership. Thus, we delete the original objects and fetch only
+	// the parent resource.
+	if ar.Request.Resource.Resource == "pods" && ar.Request.SubResource == "exec" {
+		resource = nil
+		previous = nil
+	}
+
 	// These checks are needed in order to avoid a null pointer exception in tobac.Allowed().
 	// Interfaces can be nil checked, but the instances they're pointing to can be nil and
 	// still pass through that check.
@@ -140,8 +148,9 @@ func admitCallback(ar v1beta1.AdmissionReview) (*v1beta1.AdmissionResponse, erro
 	//
 	// See https://github.com/kubernetes/kubernetes/pull/27193
 	// See https://github.com/kubernetes/kubernetes/pull/66535
+	//
 	if resource == nil && previous == nil {
-		log.Debug("Request has no current or previous resource, attempting to fetch object from Kubernetes.")
+		log.Debug("attempting to fetch object from Kubernetes")
 		e, err := kubeclient.ObjectFromAdmissionRequest(kubeClient, *ar.Request)
 		if err != nil {
 			return nil, fmt.Errorf("while retrieving resource: %s", err)
