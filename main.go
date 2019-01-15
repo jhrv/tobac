@@ -211,10 +211,13 @@ func reply(r *http.Request) (*v1beta1.AdmissionReview, error) {
 	log.Tracef("request: %s", string(data))
 
 	decoder := json.NewDecoder(bytes.NewReader(data))
-	if err := decoder.Decode(&ar); err != nil {
-		reviewResponse = genericErrorResponse(err.Error())
-	} else {
+	err = decoder.Decode(&ar)
+	if err == nil {
 		reviewResponse, err = admitCallback(ar)
+	}
+
+	if err != nil {
+		reviewResponse = genericErrorResponse(err.Error())
 	}
 
 	reviewResponse.UID = ar.Request.UID
