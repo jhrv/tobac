@@ -157,11 +157,14 @@ func admitCallback(ar v1beta1.AdmissionReview) (*v1beta1.AdmissionResponse, erro
 			// are immune to failure when objects don't exist.
 			if tobac.ClusterAdminResponse(req) == nil {
 				return nil, fmt.Errorf("while retrieving resource: %s", err)
+			} else {
+				log.Debugf("Previous object does not exist; ignoring because requester is cluster administrator")
 			}
+		} else {
+			selfLink = e.GetSelfLink()
+			log.Debugf("Previous object retrieved from %s", e.GetSelfLink())
+			req.ExistingResource = e
 		}
-		selfLink = e.GetSelfLink()
-		log.Debugf("Previous object retrieved from %s", e.GetSelfLink())
-		req.ExistingResource = e
 	}
 
 	log.Tracef("parsed/old: %+v", previous)
