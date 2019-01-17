@@ -153,7 +153,11 @@ func admitCallback(ar v1beta1.AdmissionReview) (*v1beta1.AdmissionResponse, erro
 		log.Debug("attempting to fetch object from Kubernetes")
 		e, err := kubeclient.ObjectFromAdmissionRequest(kubeClient, *ar.Request)
 		if err != nil {
-			return nil, fmt.Errorf("while retrieving resource: %s", err)
+			// Cluster administrators know what they're doing [sic] and
+			// are immune to failure when objects don't exist.
+			if tobac.ClusterAdminResponse(req) == nil {
+				return nil, fmt.Errorf("while retrieving resource: %s", err)
+			}
 		}
 		selfLink = e.GetSelfLink()
 		log.Debugf("Previous object retrieved from %s", e.GetSelfLink())

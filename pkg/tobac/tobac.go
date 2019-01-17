@@ -60,18 +60,26 @@ func hasServiceUserAccess(username, teamID string, templates []string) bool {
 	return false
 }
 
+func ClusterAdminResponse(request Request) *Response {
+	for _, userGroup := range request.UserInfo.Groups {
+		for _, adminGroup := range request.ClusterAdmins {
+			if userGroup == adminGroup {
+				return &Response{Allowed: true, Reason: fmt.Sprintf(SuccessUserIsClusterAdmin, adminGroup)}
+			}
+		}
+	}
+
+	return nil
+}
+
 func Allowed(request Request) Response {
 	var team azure.Team
 	var teamID string
 	var existingLabel string
 
 	// Allow if user is a cluster administrator
-	for _, userGroup := range request.UserInfo.Groups {
-		for _, adminGroup := range request.ClusterAdmins {
-			if userGroup == adminGroup {
-				return Response{Allowed: true, Reason: fmt.Sprintf(SuccessUserIsClusterAdmin, adminGroup)}
-			}
-		}
+	if response := ClusterAdminResponse(request); response != nil {
+		return *response
 	}
 
 	if request.SubmittedResource != nil {
