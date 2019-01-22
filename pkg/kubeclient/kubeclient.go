@@ -18,6 +18,9 @@ func New(config *rest.Config) (dynamic.Interface, error) {
 }
 
 func ObjectFromAdmissionRequest(client dynamic.Interface, req v1beta1.AdmissionRequest) (metav1.Object, error) {
+	if len(req.Name) == 0 || len(req.Namespace) == 0 {
+		return nil, fmt.Errorf("resource name and namespace must be specified")
+	}
 	identifier := schema.GroupVersionResource{
 		Group:    req.Resource.Group,
 		Version:  req.Resource.Version,
