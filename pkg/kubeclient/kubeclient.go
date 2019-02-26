@@ -17,18 +17,31 @@ func New(config *rest.Config) (dynamic.Interface, error) {
 	return dynamic.NewForConfig(config)
 }
 
+func namespacedObject(client dynamic.Interface, req v1beta1.AdmissionRequest, identifier schema.GroupVersionResource) (metav1.Object, error) {
+	log.Debugf("using %+v to look up resource '%s' in namespace '%s'", identifier, req.Name, req.Namespace)
+	c := client.Resource(identifier)
+	return c.Namespace(req.Namespace).Get(req.Name, metav1.GetOptions{})
+}
+
+func clusterObject(client dynamic.Interface, req v1beta1.AdmissionRequest, identifier schema.GroupVersionResource) (metav1.Object, error) {
+	log.Debugf("using %+v to look up resource '%s' in cluster scope", identifier, req.Name)
+	c := client.Resource(identifier)
+	return c.Get(req.Name, metav1.GetOptions{})
+}
+
 func ObjectFromAdmissionRequest(client dynamic.Interface, req v1beta1.AdmissionRequest) (metav1.Object, error) {
-	if len(req.Name) == 0 || len(req.Namespace) == 0 {
-		return nil, fmt.Errorf("resource name and namespace must be specified")
+	if len(req.Name) == 0 {
+		return nil, fmt.Errorf("resource name must be specified")
 	}
 	identifier := schema.GroupVersionResource{
 		Group:    req.Resource.Group,
 		Version:  req.Resource.Version,
 		Resource: req.Resource.Resource,
 	}
-	log.Debugf("using %+v to look up resource '%s' in namespace '%s'", identifier, req.Name, req.Namespace)
-	c := client.Resource(identifier)
-	return c.Namespace(req.Namespace).Get(req.Name, metav1.GetOptions{})
+	if len(req.Namespace) == 0 {
+		return clusterObject(client, req, identifier)
+	}
+	return namespacedObject(client, req, identifier)
 }
 
 func kubeconfig() (string, error) {
