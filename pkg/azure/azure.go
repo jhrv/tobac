@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -69,9 +70,9 @@ func get(ctx context.Context, path string, target interface{}) error {
 		return err
 	}
 
-	json.NewDecoder(resp.Body).Decode(target)
+	err = json.NewDecoder(resp.Body).Decode(target)
 
-	return nil
+	return err
 }
 
 // Teams retrieves the canonical list of team groups from the Microsoft Graph API.
@@ -82,6 +83,10 @@ func Teams(ctx context.Context) (map[string]Team, error) {
 	err := get(ctx, sharepointQuery, list)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(list.Value) == 0 {
+		return nil, fmt.Errorf("list of teams is empty; possible unhandled error")
 	}
 
 	for _, v := range list.Value {
