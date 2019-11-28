@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	clientID        = os.Getenv("AZURE_APP_ID")
-	clientSecret    = os.Getenv("AZURE_PASSWORD")
-	tenantID        = os.Getenv("AZURE_TENANT")
-	teamParentGroup = os.Getenv("AZURE_TEAM_PARENT_GROUP")
+	clientID                    = os.Getenv("AZURE_APP_ID")
+	clientSecret                = os.Getenv("AZURE_PASSWORD")
+	tenantID                    = os.Getenv("AZURE_TENANT")
+	teamMembershipApplicationID = os.Getenv("AZURE_TEAM_MEMBERSHIP_APP_ID")
 )
 
 type Team struct {
@@ -45,7 +45,7 @@ func client(ctx context.Context) *http.Client {
 func Teams(ctx context.Context) (map[string]Team, error) {
 	graphAPI := NewGraphAPI(client(ctx))
 
-	teamGroups, err := graphAPI.GroupsInGroup(teamParentGroup)
+	teamGroups, err := graphAPI.GroupsFromApplication(teamMembershipApplicationID)
 	if err != nil {
 		return nil, err
 	}
