@@ -3,12 +3,13 @@ package azure
 import (
 	"context"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/oauth2/microsoft"
