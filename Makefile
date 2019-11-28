@@ -9,6 +9,9 @@ build:
 test:
 	go test ./... -count=1
 
+integration_test:
+	go test ./pkg/azure/azure_test.go -tags=integration -v -count=1
+
 release:
 	go build -a -installsuffix cgo -o tobac -ldflags "-s $(LDFLAGS)"
 
