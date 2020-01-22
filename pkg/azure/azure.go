@@ -3,12 +3,14 @@ package azure
 import (
 	"context"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/oauth2/microsoft"
@@ -91,6 +93,11 @@ func Teams(ctx context.Context) (map[string]Team, error) {
 
 	for _, v := range list.Value {
 		team := v.Fields
+		lower := strings.ToLower(team.ID)
+		if team.ID != lower {
+			log.Warnf("azure: transposing real team name '%s' to lowercase '%s'", team.ID, lower)
+			team.ID = lower
+		}
 		if team.Valid() {
 			teams[team.ID] = team
 			log.Debugf("azure: add team '%s' with id '%s'", team.ID, team.AzureUUID)
