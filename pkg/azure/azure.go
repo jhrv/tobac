@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -55,13 +56,16 @@ func Teams(ctx context.Context) (map[string]Team, error) {
 		team := Team{
 			AzureUUID: teamGroup.ID,
 			Title:     teamGroup.DisplayName,
-			ID:        teamGroup.MailNickname,
+			ID:        strings.ToLower(teamGroup.MailNickname),
 		}
 		if team.Valid() {
 			teams[team.ID] = team
 			log.Debugf("azure: add team '%s' with id '%s'", team.ID, team.AzureUUID)
 		} else {
 			log.Errorf("azure: invalid team '%s'", team.ID)
+		}
+		if team.ID != teamGroup.MailNickname {
+			log.Warnf("azure: transposing real team name '%s' to lowercase '%s'", teamGroup.MailNickname, team.ID)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package teams
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -41,6 +42,7 @@ func Sync(interval, timeout time.Duration) {
 
 // Get returns a team with the specified identified
 func Get(id string) azure.Team {
+	id = strings.ToLower(id)
 	mutex.Lock()
 	defer mutex.Unlock()
 	return teamList[id]
