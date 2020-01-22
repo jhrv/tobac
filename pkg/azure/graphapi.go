@@ -67,7 +67,7 @@ func (g *GraphAPI) servicePrincipalsInApplication(appID string) ([]ServicePrinci
 	queryParams := url.Values{}
 	queryParams.Set("$top", "999")
 	queryParams.Set("$select", "principalId,principalType")
-	nextURL := fmt.Sprintf("https://graph.microsoft.com/beta/servicePrincipals/%s/appRoleAssignments?%s", appID, queryParams.Encode())
+	nextURL := fmt.Sprintf("https://graph.microsoft.com/beta/servicePrincipals/%s/appRoleAssignedTo?%s", appID, queryParams.Encode())
 
 	for len(nextURL) != 0 {
 		_, body, err := g.query(nextURL)
