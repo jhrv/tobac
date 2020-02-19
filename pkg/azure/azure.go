@@ -2,42 +2,28 @@ package azure
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
 	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/oauth2/microsoft"
 )
 
 var (
-	clientID     = os.Getenv("AZURE_APP_ID")
-	clientSecret = os.Getenv("AZURE_PASSWORD")
-	tenantID     = os.Getenv("AZURE_TENANT")
+	clientID                    = os.Getenv("AZURE_APP_ID")
+	clientSecret                = os.Getenv("AZURE_PASSWORD")
+	tenantID                    = os.Getenv("AZURE_TENANT")
+	teamMembershipApplicationID = os.Getenv("AZURE_TEAM_MEMBERSHIP_APP_ID")
 )
 
-const sharepointQuery = "9f0d0ea1-0226-4aa9-9bf9-b6e75816fabf/sites/root/lists/nytt team/items?expand=fields"
-
-type sharePointList struct {
-	Value []sharePointListEntry `json:"value"`
-}
-
-type sharePointListEntry struct {
-	Fields Team `json:"fields"`
-}
-
-// Team struc used to deserialize fields from sharePointListEntry.
 type Team struct {
-	AzureUUID   string `json:"GruppeID"`
-	ID          string `json:"mailnick_x002f_tag"`
-	Title       string `json:"Title"`
-	Description string `json:"Beskrivelse"`
+	AzureUUID   string
+	ID          string
+	Title       string
+	Description string
 }
 
 // Valid returns true if the ID fields are non-empty.
@@ -56,51 +42,30 @@ func client(ctx context.Context) *http.Client {
 	return config.Client(ctx)
 }
 
-func get(ctx context.Context, path string, target interface{}) error {
-	getURL, err := url.Parse("https://graph.microsoft.com/v1.0/groups/" + path)
-	if err != nil {
-		return err
-	}
-
-	req := &http.Request{
-		Method: "GET",
-		URL:    getURL,
-	}
-
-	resp, err := client(ctx).Do(req)
-	if err != nil {
-		return err
-	}
-
-	err = json.NewDecoder(resp.Body).Decode(target)
-
-	return err
-}
-
 // Teams retrieves the canonical list of team groups from the Microsoft Graph API.
 func Teams(ctx context.Context) (map[string]Team, error) {
-	teams := make(map[string]Team)
+	graphAPI := NewGraphAPI(client(ctx))
 
-	list := &sharePointList{}
-	err := get(ctx, sharepointQuery, list)
+	teamGroups, err := graphAPI.GroupsFromApplication(teamMembershipApplicationID)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(list.Value) == 0 {
-		return nil, fmt.Errorf("list of teams is empty; possible unhandled error")
-	}
-
-	for _, v := range list.Value {
-		team := v.Fields
-		lower := strings.ToLower(team.ID)
-		if team.ID != lower {
-			log.Warnf("azure: transposing real team name '%s' to lowercase '%s'", team.ID, lower)
-			team.ID = lower
+	teams := make(map[string]Team)
+	for _, teamGroup := range teamGroups {
+		team := Team{
+			AzureUUID: teamGroup.ID,
+			Title:     teamGroup.DisplayName,
+			ID:        strings.ToLower(teamGroup.MailNickname),
 		}
 		if team.Valid() {
 			teams[team.ID] = team
 			log.Debugf("azure: add team '%s' with id '%s'", team.ID, team.AzureUUID)
+		} else {
+			log.Errorf("azure: invalid team '%s'", team.ID)
+		}
+		if team.ID != teamGroup.MailNickname {
+			log.Warnf("azure: transposing real team name '%s' to lowercase '%s'", teamGroup.MailNickname, team.ID)
 		}
 	}
 
