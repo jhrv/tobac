@@ -41,7 +41,7 @@ func DefaultConfig() *Config {
 		KeyFile:              "/etc/tobac/tls.key",
 		AzureTimeout:         "5s",
 		AzureSyncInterval:    "10m",
-		ServiceUserTemplates: []string{"system:serviceaccount:default:serviceuser-%s"},
+		ServiceUserTemplates: []string{"system:serviceaccount:%s:serviceuser-%s"},
 		LogFormat:            "text",
 		LogLevel:             "info",
 		APIServerInsecureTLS: false,

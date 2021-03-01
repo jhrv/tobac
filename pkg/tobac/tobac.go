@@ -52,7 +52,7 @@ func stringInSlice(slice []string, str string) bool {
 // Check if a user is in the service user access list.
 func hasServiceUserAccess(username, teamID string, templates []string) bool {
 	for _, template := range templates {
-		allowedUser := fmt.Sprintf(template, teamID)
+		allowedUser := fmt.Sprintf(template, teamID, teamID)
 		if username == allowedUser {
 			return true
 		}
