@@ -16,7 +16,7 @@ var clusterAdmins = []string{
 }
 
 var serviceUserTemplates = []string{
-	"serviceuser-%s",
+	"system:serviceaccounts:%s:serviceuser-%s",
 }
 
 var emptyResource = &tobac.KubernetesResource{}
@@ -185,7 +185,7 @@ func TestAllowServiceUserCreate(t *testing.T) {
 	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
-				Username: "serviceuser-foo",
+				Username: "system:serviceaccounts:foo:serviceuser-foo",
 				Groups:   []string{},
 			},
 			ClusterAdmins:        clusterAdmins,
@@ -202,7 +202,7 @@ func TestAllowServiceUserUpdate(t *testing.T) {
 	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
-				Username: "serviceuser-foo",
+				Username: "system:serviceaccounts:foo:serviceuser-foo",
 				Groups:   []string{},
 			},
 			ClusterAdmins:        clusterAdmins,
@@ -220,7 +220,7 @@ func TestAllowServiceUserDelete(t *testing.T) {
 	response := tobac.Allowed(
 		tobac.Request{
 			UserInfo: authenticationv1.UserInfo{
-				Username: "serviceuser-foo",
+				Username: "system:serviceaccounts:foo:serviceuser-foo",
 				Groups:   []string{},
 			},
 			ClusterAdmins:        clusterAdmins,
