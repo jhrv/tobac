@@ -8,13 +8,13 @@ jobs:
     steps:
       - name: Checkout tobac
         uses: actions/checkout@v2
-      - run: docker build -t docker.pkg.github.com/"$GITHUB_REPOSITORY"/tobac:$(./version.sh) .
+      - run: docker build -t ghcr.io/"$GITHUB_REPOSITORY"/tobac:$(./version.sh) .
       - name: Login to Github Package Registry
         env:
           DOCKER_USERNAME: x-access-token
           DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin docker.pkg.github.com
-      - run: docker push docker.pkg.github.com/"$GITHUB_REPOSITORY"/tobac:$(./version.sh)
+        run: echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin ghcr.io
+      - run: docker push ghcr.io/"$GITHUB_REPOSITORY"/tobac:$(./version.sh)
 
   nais-yaml:
     name: Release to nais-yaml
@@ -46,7 +46,7 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-          sed -E -i "s#image: docker.pkg.github.com/"$GITHUB_REPOSITORY"/tobac:.+#image: docker.pkg.github.com/"$GITHUB_REPOSITORY"/tobac:${version}#" vars/global.yaml
+          sed -E -i "s#image: ghcr.io/"$GITHUB_REPOSITORY"/tobac:.+#image: ghcr.io/"$GITHUB_REPOSITORY"/tobac:${version}#" vars/global.yaml
           git add .
           git --no-pager diff --cached
           git commit --no-verify -a -m "Bump Tobac to version ${version}"
