@@ -1,4 +1,4 @@
-# ToBAC
+# ToBAC is superseded by dedicated team namespaces
 
 ToBAC provides _Team-Based Access Control_ to Kubernetes clusters. It is implemented as a
 [Validating Admission Webhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/).
